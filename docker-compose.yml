@@ -5,9 +5,10 @@
 
 services:
   sonarqube:
-    build:
-      context: ./sonarqube
-      dockerfile: Dockerfile
+#    build:
+#      context: ./sonarqube
+#      dockerfile: Dockerfile
+    image: sonarqube
     container_name: sonarqube
     depends_on:
       - db
@@ -37,41 +38,15 @@ services:
       - sonarnet
 
   runner1:
-    image: local-github-runner   # ✅ Use the prebuilt image
+    image: local-github-runner
     container_name: github-runner-${GITHUB_REPO_1}
     environment:
       REPO_URL: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO_1}
       RUNNER_NAME: runner-${GITHUB_REPO_1}
-      RUNNER_WORKDIR: /tmp/runner/work
+      RUNNER_WORKDIR: /home/docker/actions-runner/_work
       GITHUB_OWNER: ${GITHUB_OWNER}
+      GITHUB_REPO: ${GITHUB_REPO_1}
       LABELS: runner-${GITHUB_REPO_1}
-      ACCESS_TOKEN: ${GH_RUNNER_TOKEN}
-      SONAR_TOKEN: ${SONAR_TOKEN}
-      PROJECT_KEY: ${GITHUB_REPO_1}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      SONAR_JDBC_USERNAME: ${SONAR_JDBC_USERNAME}
-      SONAR_JDBC_PASSWORD: ${SONAR_JDBC_PASSWORD}
-      CONNECTION_NAME: ${CONNECTION_NAME}
-      SNOW_CONFIG_B64: ${SNOW_CONFIG_B64:-default_value_here}
-      SNOW_KEY_B64: ${SNOW_KEY_B64:-default_value_here}
-    restart: unless-stopped
-    privileged: true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - sonarnet
-
-  runner2:
-    image: local-github-runner   # ✅ Use the prebuilt image
-    container_name: github-runner-${GITHUB_REPO_2}
-    environment:
-      REPO_URL: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO_2}
-      RUNNER_NAME: runner-${GITHUB_REPO_2}
-      GITHUB_OWNER: ${GITHUB_OWNER}
-      RUNNER_WORKDIR: /tmp/runner/work
-      LABELS: runner-${GITHUB_REPO_2}
       ACCESS_TOKEN: ${GH_RUNNER_TOKEN}
       SONAR_TOKEN: ${SONAR_TOKEN}
       PROJECT_KEY: ${GITHUB_REPO_1}

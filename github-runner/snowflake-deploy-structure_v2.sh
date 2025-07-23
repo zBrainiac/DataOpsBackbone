@@ -16,7 +16,7 @@
 set -e
 
 # --- Default value ---
-BASE_WORKSPACE="/tmp/runner/work"
+BASE_WORKSPACE="/home/docker/actions-runner/_work"
 
 # --- Parse arguments ---
 for ARG in "$@"; do

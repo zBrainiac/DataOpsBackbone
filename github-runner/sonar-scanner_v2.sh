@@ -34,7 +34,7 @@ fi
 echo "🚀 Running sonar-scanner..."
 "$SONAR_SCANNER" \
   -Dsonar.projectKey="$PROJECT_KEY" \
-  -Dsonar.projectBaseDir="/tmp/runner/work/$PROJECT_KEY/$PROJECT_KEY" \
+  -Dsonar.projectBaseDir="/home/docker/actions-runner/_work/$PROJECT_KEY/$PROJECT_KEY" \
   -Dsonar.host.url="$SONAR_HOST" \
   -Dsonar.scm.disabled=true \
   -Dsonar.language=sql \

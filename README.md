@@ -28,8 +28,24 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCn4h4yObmnbPM3
 SN3iZYUz88eg2c3nbQkXdQg=
 -----END PRIVATE KEY-----
 ```
+.env file
+```
+# GitHub
+GH_RUNNER_TOKEN=
+GITHUB_OWNER=zBrainiac
+GITHUB_REPO_1=mother-of-all-Projects
 
+# Sonar
+POSTGRES_USER=<...>
+POSTGRES_PASSWORD=<...>
+POSTGRES_DB=<...>
+SONAR_JDBC_USERNAME=<...>
+SONAR_JDBC_PASSWORD=<...>
 
+# Snowflake
+CONNECTION_NAME=sfseeurope-demo_ci_user
+SNOW_PRIVATE_KEY_PATH=/path/to/key.pem
+```
 
 Step 1: Encode the files (on your machine)
 

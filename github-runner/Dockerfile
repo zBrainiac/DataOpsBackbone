@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y \
       "urllib3<2.0.0,>=1.21.1" \
       "snowflake-connector-python>=3.14.0,<4.0.0" \
       "snowflake-snowpark-python==1.30.0" \
-      "snowflake-cli-labs"
+      "snowflake-cli"
 
 # Add sonar-scanner to PATH
 ENV PATH="/usr/local/sonar-scanner/bin:/usr/local/bin:${PATH}"
