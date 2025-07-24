@@ -13,7 +13,7 @@
 In large, federated organizations, scaling analytics isn’t just a tech challenge—**it’s an operational one**.  
 Manual QA breaks at scale. When you're pushing **1,000+ deployments a day**, **automation, governance, and consistency** are essential.
 
-This showcase project — [**Mother-of-all-Projects**](https://github.com/zBrainiac/mother-of-all-Projects) — demonstrates a fully automated DevOps setup designed to enforce SQL code quality, structure release flows, and scale confidently with Snowflake and GitHub Actions.
+This showcase project, together with [**Mother-of-all-Projects**](https://github.com/zBrainiac/mother-of-all-Projects) — demonstrates a fully automated DataOps setup designed to enforce SQL code quality, structure release flows, and scale confidently with Snowflake and GitHub Actions.
 
 ---
 
