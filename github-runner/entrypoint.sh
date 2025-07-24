@@ -1,0 +1,85 @@
+#!/bin/bash
+set -euo pipefail
+
+# Basic environment vars
+GH_TOKEN=${ACCESS_TOKEN:-}
+GITHUB_OWNER=${GITHUB_OWNER:-}
+GITHUB_REPO=${GITHUB_REPO:-}
+RUNNER_NAME=${RUNNER_NAME:-"github-runner-$(tr -dc A-Za-z0-9 </dev/urandom | head -c 8)"}
+
+echo "GITHUB_OWNER: ${GITHUB_OWNER}"
+echo "GITHUB_REPO: ${GITHUB_REPO}"
+echo "Runner name: ${RUNNER_NAME}"
+
+cd /home/docker/actions-runner || { echo "ERROR: Runner directory not found"; exit 1; }
+
+# Clean up runner on termination
+cleanup() {
+    echo "Caught termination signal. Cleaning up runner..."
+
+    if [ -f .runner ]; then
+        echo "Fetching removal token..."
+        REMOVE_TOKEN=$(curl -s -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/remove-token" \
+            | jq -r .token)
+
+        if [[ -n "${REMOVE_TOKEN}" && "${REMOVE_TOKEN}" != "null" ]]; then
+            ./config.sh remove --token "${REMOVE_TOKEN}" || echo "Runner removal failed or was already removed"
+        else
+            echo "Failed to get removal token; skipping removal"
+        fi
+    else
+        echo "No runner config found; skipping removal"
+    fi
+
+    exit 0
+}
+
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+# Validate required vars
+if [[ -z "${GH_TOKEN}" || -z "${GITHUB_OWNER}" || -z "${GITHUB_REPO}" ]]; then
+    echo "ERROR: ACCESS_TOKEN, GITHUB_OWNER, and GITHUB_REPO must be set"
+    exit 1
+fi
+
+# Remove stale runner if it exists
+if [ -f .runner ]; then
+    echo "Runner already configured. Removing existing runner before re-registering..."
+    REMOVE_TOKEN=$(curl -s -X POST \
+        -H "Authorization: token ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/remove-token" \
+        | jq -r .token)
+
+    if [[ -n "${REMOVE_TOKEN}" && "${REMOVE_TOKEN}" != "null" ]]; then
+        ./config.sh remove --token "${REMOVE_TOKEN}" || echo "Stale runner removal failed or already removed"
+    else
+        echo "Failed to get removal token; skipping stale removal"
+    fi
+fi
+
+# Fetch registration token
+echo "Fetching registration token..."
+REG_TOKEN=$(curl -s -X POST \
+    -H "Authorization: token ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/registration-token" \
+    | jq -r .token)
+
+if [[ -z "${REG_TOKEN}" || "${REG_TOKEN}" == "null" ]]; then
+    echo "ERROR: Failed to retrieve registration token. Check credentials and permissions."
+    exit 1
+fi
+
+echo "Registration token acquired. Configuring runner..."
+./config.sh --url "https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}" \
+            --token "${REG_TOKEN}" \
+            --name "${RUNNER_NAME}" \
+            --unattended --replace
+
+# Start runner as PID 1
+exec ./run.sh

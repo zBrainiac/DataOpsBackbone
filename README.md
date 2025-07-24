@@ -28,7 +28,7 @@ A DataOps pipeline that automates:
 - 📦 Packaging deployable artifacts
 
 #### Overview of the infrastructure:
-![overview infrastructure](images/DataOps_2025-07-24.excalidraw.png)
+![overview infrastructure](images/DataOps_infra_overview.png)
 
 ---
 
@@ -56,6 +56,15 @@ It combines:
   - Local development/testing
 
 ---
+## Monitoring
+### Issue overview
+![Issue overview](images/sq_rules.png)
+
+### Issue within code
+![Issue within code](images/sq_Issue_within_code.png)
+
+### Technical dept
+![Technical dept](images/sq_technical_dept.png)
 
 ## ⚡ Quick Setup Guide
 
