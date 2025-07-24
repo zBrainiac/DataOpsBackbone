@@ -1,13 +1,9 @@
 # docker compose up --build
 # docker compose up runner1
-
 # docker compose down -v --remove-orphans
 
 services:
   sonarqube:
-#    build:
-#      context: ./sonarqube
-#      dockerfile: Dockerfile
     image: sonarqube
     container_name: sonarqube
     depends_on:
@@ -43,7 +39,7 @@ services:
     environment:
       REPO_URL: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO_1}
       RUNNER_NAME: runner-${GITHUB_REPO_1}
-      RUNNER_WORKDIR: /home/docker/actions-runner/_work
+      RUNNER_WORKDIR: /_work/runner-${GITHUB_REPO_1}
       GITHUB_OWNER: ${GITHUB_OWNER}
       GITHUB_REPO: ${GITHUB_REPO_1}
       LABELS: runner-${GITHUB_REPO_1}
@@ -58,10 +54,14 @@ services:
       CONNECTION_NAME: ${CONNECTION_NAME}
       SNOW_CONFIG_B64: ${SNOW_CONFIG_B64:-default_value_here}
       SNOW_KEY_B64: ${SNOW_KEY_B64:-default_value_here}
+      DISABLE_AUTOMATIC_DEREGISTRATION: "true"
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: /actions-runner-config/${GITHUB_REPO_1}
+      UNSET_CONFIG_VARS: "true"
     restart: unless-stopped
     privileged: true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - runner_config:/actions-runner-config/${GITHUB_REPO_1}
     networks:
       - sonarnet
 
@@ -69,6 +69,7 @@ volumes:
   sonarqube_data:
   sonarqube_extensions:
   postgresql:
+  runner_config:
 
 networks:
   sonarnet:

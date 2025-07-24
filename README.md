@@ -27,6 +27,9 @@ A DataOps pipeline that automates:
 - 🚀 Building and testing releases
 - 📦 Packaging deployable artifacts
 
+#### Overview of the infrastructure:
+![overview infrastructure](images/DataOps_2025-07-24.excalidraw.png)
+
 ---
 
 ### 🚀 How?
