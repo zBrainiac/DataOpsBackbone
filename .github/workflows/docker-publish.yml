@@ -39,7 +39,7 @@ jobs:
       - name: Build and push SonarQube image (ARM64)
         uses: docker/build-push-action@v5
         with:
-          context: ./sonarqube/Dockerfile
+          context: ./sonarqube
           platforms: linux/arm64
           push: true
           tags: brainiac/sonarqube:latest
