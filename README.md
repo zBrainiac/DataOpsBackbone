@@ -56,6 +56,56 @@ It combines:
   - Local development/testing
 
 ---
+## 1. SQL Linting Rules and Regex Patterns
+This list provides a few examples of SQL validation rules, each of which is paired with a regular expression (regex) that can be used to identify non-compliant code using the Community Text plugin of SonarQube.
+
+Backups of these rules, which can be restored as a Quality Profile, are available in the repository ([link](backup/2025-07-23_quality_profiles_text_plugin.xml)).
+
+### 2. Disallow `CREATE SCHEMA` without `IF NOT EXISTS` or `REPLACE`
+```regex
+(?i)^\s*CREATE\s+(?!OR\s+REPLACE\b)(?!.*\bIF\s+NOT\s+EXISTS\b).*?\bSCHEMA\b
+```
+
+### 3. Disallow CREATE TABLE without IF NOT EXISTS or REPLACE
+```regex
+(?is)^(?!\s*--).*CREATE\s+(?!OR\s+REPLACE\b|.*IF\s+NOT\s+EXISTS\b).*TABLE\b
+```
+
+### 4. Disallow CREATE statements with hardcoded database and/or schema prefix
+```regex
+(?i)^(?!\s*--)\s*create\s+(or\s+replace\s+)?(table|view|schema)\s+(if\s+not\s+exists\s+)?[a-z0-9_]+\.[a-z0-9_]+(\.[a-z0-9_]+)?
+```
+
+### 5. Disallow GRANT statements to PUBLIC
+```regex
+(?i)^(?!\s*--).*grant\s+.*\s+to\s+public\b
+```
+
+### 6. Disallow dropping objects without IF EXISTS
+```regex
+(?i)^\s*DROP\s+(SCHEMA|TABLE|VIEW)\s+(?!IF\s+EXISTS\b)
+```
+
+### 7. Disallow hardcoded USE DATABASE, USE SCHEMA, or USE ROLE statements
+```regex
+(?i)^(?!\s*--)\s*USE\s+(DATABASE|SCHEMA|ROLE)\b
+```
+
+### 8. Disallow usage of TIMESTAMP types other than TIMESTAMP_TZ
+```regex
+(?i)(?<!--.*)\bTIMESTAMP(_NTZ|_LTZ)?(\s*\(\s*\d+\s*\))?\b
+```
+
+### 9. Schema names must have a prefix (RAW_, REF_, CON_, AGG_, DP_, DM_)
+```regex
+(?i)^(?!\s*--)\s*CREATE\s+(OR\s+REPLACE\s+)?SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?(?:[a-z0-9_]+\.)?(?!RAW_|REF_|CON_|AGG_|DP_|DM_)[a-z0-9_]+;
+```
+
+### (Dynamic) Table | Views names must begin with a 3-character alphanumeric component code followed by an underscore
+```regex
+(?i)^(?!\s*--)(?:\s*create(?:\s+or\s+replace)?|\s*alter)\s+(dynamic\s+)?table\s+(if\s+not\s+exists\s+)?(?:[A-Z0-9_]+\.){0,2}(?![A-Z0-9]{3}_)[A-Z_][A-Z0-9_]*
+```
+
 ## Monitoring
 ### Issue overview
 ![Issue overview](images/sq_rules.png)
@@ -124,16 +174,29 @@ Upload the following secrets to GitHub:
 
 - `SNOW_CONFIG_B64`
 - `SNOW_KEY_B64`
-- `SONAR_TOKEN`
+- `SONAR_TOKEN` (see below step 3.)
+
+---
+### 🔐 Step 3: Generate a SONAR_TOKEN (for user `ci_user`)
+
+1. Start your local stack via `./start.sh`
+2. Log in to SonarQube [http://localhost:9000](http://localhost:9000) as `admin`
+3. Go to **My Account** > **Security**
+4. Under **Generate Tokens**:
+ - **Name** the token (e.g., `ci_user`)
+ - **Type** of the token `global analysis token`
+ - Click **Generate**
+5. Copy the token (you won’t see it again).
+6. Use as `SONAR_TOKEN` in your CI/CD pipeline.
 
 ---
 
-### 🔁 Step 3: Run It
+### 🔁 Step 4: Run It
 
-- Start your local stack via `docker-compose`
-- Access SonarQube at: [http://localhost:9000](http://localhost:9000)  
-  **Login**: `admin` / `ThisIsNotSecure1234!`
-- Trigger your GitHub workflow
+1. Start your local stack via `./start.sh`
+2. Access SonarQube at: [http://localhost:9000](http://localhost:9000)  
+  **Login**: `admin` / `ThisIsNotSecure1234!` (default 'admin')
+3. Trigger your GitHub workflow
 
 ---
 

@@ -2,8 +2,8 @@
 set -e
 
 # Step 0: Clean up
-echo "🚧 Clean up..."
-docker compose down -v --remove-orphans
+# echo "🚧 Clean up..."
+# docker compose down -v --remove-orphans
 
 # Step 1: Build the GitHub runner image
 echo "🚧 Building GitHub runner image..."
