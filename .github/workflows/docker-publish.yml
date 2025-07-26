@@ -34,8 +34,6 @@ jobs:
           file: ./github-runner/Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
-          build-args: |
-            TARGETARCH=amd64  # This is overridden per arch by Docker
           tags: |
             brainiac/local-github-runner:latest
 
@@ -46,7 +44,5 @@ jobs:
           file: ./sonarqube/Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
-          build-args: |
-            TARGETARCH=amd64
           tags: |
             brainiac/sonarqube:latest
