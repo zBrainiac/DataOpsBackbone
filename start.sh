@@ -27,7 +27,7 @@ echo "🚧 Building GitHub runner image for $PLATFORM..."
 docker build \
   --platform=$PLATFORM \
   --build-arg TARGETARCH=$TARGETARCH \
-  -t local-github-runner \
+  -t brainiac/local-github-runner \
   -f github-runner/Dockerfile \
   github-runner
 
@@ -35,7 +35,7 @@ echo "🚧 Building SonarQube image for $PLATFORM..."
 docker build \
   --platform=$PLATFORM \
   --build-arg TARGETARCH=$TARGETARCH \
-  -t sonarqube \
+  -t brainiac/sonarqube \
   ./sonarqube
 
 echo "🚀 Starting all services with docker compose..."

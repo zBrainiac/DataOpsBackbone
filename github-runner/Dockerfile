@@ -30,24 +30,21 @@ RUN useradd -m docker
 
 # Map TARGETARCH for GitHub Actions runner (arm64 → arm)
 RUN set -eux; \
-    if [ "${TARGETARCH}" = "arm64" ]; then \
-      RUNNER_ARCH=arm; \
-    elif [ "${TARGETARCH}" = "amd64" ]; then \
-      RUNNER_ARCH=x64; \
-    else \
-      RUNNER_ARCH=${TARGETARCH}; \
-    fi; \
-    echo "TARGETARCH=${TARGETARCH}"; \
-    echo "RUNNER_ARCH=${RUNNER_ARCH}"; \
-    echo "Trying to download https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"; \
-    mkdir -p /home/docker/actions-runner; \
-    curl -fL -o actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"; \
-    tar -xzf actions-runner.tar.gz -C /home/docker/actions-runner; \
-    rm actions-runner.tar.gz; \
-    /home/docker/actions-runner/bin/installdependencies.sh; \
-    chown -R docker /home/docker/actions-runner
-
-
+  if [ "${TARGETARCH}" = "arm64" ]; then \
+    RUNNER_ARCH=arm64; \
+  elif [ "${TARGETARCH}" = "amd64" ]; then \
+    RUNNER_ARCH=x64; \
+  else \
+    RUNNER_ARCH=${TARGETARCH}; \
+  fi; \
+  echo "TARGETARCH=${TARGETARCH}"; \
+  echo "RUNNER_ARCH=${RUNNER_ARCH}"; \
+  curl -fL -o actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"; \
+  mkdir -p /home/docker/actions-runner; \
+  tar -xzf actions-runner.tar.gz -C /home/docker/actions-runner; \
+  rm actions-runner.tar.gz; \
+  /home/docker/actions-runner/bin/installdependencies.sh; \
+  chown -R docker /home/docker/actions-runner
 
 # Install Snowflake CLI
 RUN pip install --no-cache-dir snowflake-cli-labs

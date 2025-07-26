@@ -4,7 +4,7 @@
 
 services:
   sonarqube:
-    image: sonarqube
+    image: brainiac/sonarqube
     container_name: sonarqube
     depends_on:
       - db
@@ -34,7 +34,7 @@ services:
       - sonarnet
 
   runner1:
-    image: local-github-runner
+    image: brainiac/local-github-runner
     container_name: github-runner-${GITHUB_REPO_1}
     environment:
       REPO_URL: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO_1}
