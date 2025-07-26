@@ -21,7 +21,7 @@ services:
       - sonarnet
 
   db:
-    image: postgres:13
+    image: postgres:17.5
     container_name: sonarqube_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}

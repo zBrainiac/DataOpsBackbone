@@ -1,4 +1,4 @@
-name: Docker Build and Push to Docker Hub (ARM64)
+name: Docker Build and Push to Docker Hub (Multi-Arch)
 
 on:
   push:
@@ -27,19 +27,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push GitHub runner image (ARM64)
+      - name: Build and push GitHub runner image (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./github-runner
-          file: ./github-runner/Dockerfile_arm64
-          platforms: linux/arm64
+          file: ./github-runner/Dockerfile
+          platforms: linux/arm64,linux/amd64
           push: true
-          tags: brainiac/local-github-runner:latest
+          build-args: |
+            TARGETARCH=amd64  # This is overridden per arch by Docker
+          tags: |
+            brainiac/local-github-runner:latest
 
-      - name: Build and push SonarQube image (ARM64)
+      - name: Build and push SonarQube image (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./sonarqube
-          platforms: linux/arm64
+          file: ./sonarqube/Dockerfile
+          platforms: linux/arm64,linux/amd64
           push: true
-          tags: brainiac/sonarqube:latest
+          build-args: |
+            TARGETARCH=amd64
+          tags: |
+            brainiac/sonarqube:latest

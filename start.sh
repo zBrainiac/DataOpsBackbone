@@ -1,18 +1,42 @@
 #!/bin/bash
 set -e
 
-# Step 0: Clean up
-# echo "🚧 Clean up..."
+# Step 0: Clean up (optional)
 # docker compose down -v --remove-orphans
 
-# Step 1: Build the GitHub runner image
-echo "🚧 Building GitHub runner image..."
-docker build --platform=linux/arm64 -t local-github-runner -f github-runner/Dockerfile_arm64 github-runner
+# Detect architecture
+ARCH=$(uname -m)
+echo "🔍 Detected architecture: $ARCH"
 
-# Step 2: Build the SonarQube image (from current directory)
-echo "🚧 Building SonarQube image..."
-docker build --platform=linux/arm64 -t sonarqube ./sonarqube
+case "$ARCH" in
+  x86_64)
+    PLATFORM="linux/amd64"
+    TARGETARCH="amd64"
+    ;;
+  arm64|aarch64)
+    PLATFORM="linux/arm64"
+    TARGETARCH="arm64"
+    ;;
+  *)
+    echo "❌ Unsupported architecture: $ARCH"
+    exit 1
+    ;;
+esac
 
-# Step 3: Start all services
+echo "🚧 Building GitHub runner image for $PLATFORM..."
+docker build \
+  --platform=$PLATFORM \
+  --build-arg TARGETARCH=$TARGETARCH \
+  -t local-github-runner \
+  -f github-runner/Dockerfile \
+  github-runner
+
+echo "🚧 Building SonarQube image for $PLATFORM..."
+docker build \
+  --platform=$PLATFORM \
+  --build-arg TARGETARCH=$TARGETARCH \
+  -t sonarqube \
+  ./sonarqube
+
 echo "🚀 Starting all services with docker compose..."
 docker compose --env-file .env up
