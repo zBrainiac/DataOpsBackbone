@@ -13,6 +13,12 @@ echo "Runner name: ${RUNNER_NAME}"
 
 cd /home/docker/actions-runner || { echo "ERROR: Runner directory not found"; exit 1; }
 
+echo "🔧 Checking sql-report-vol ownership..."
+if [ -d /home/docker/sql-report-vol ]; then
+    sudo chown -R docker:docker /home/docker/sql-report-vol || echo "⚠️ Could not chown volume"
+else
+    echo "⚠️ Volume directory not found at runtime"
+fi
 # Clean up runner on termination
 cleanup() {
     echo "Caught termination signal. Cleaning up runner..."

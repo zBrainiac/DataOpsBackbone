@@ -14,8 +14,9 @@ RUN echo "🐳 Building for architecture: ${TARGETARCH}" && \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip zip curl openjdk-17-jre python3 python3-pip python3-dev \
     build-essential git jq ca-certificates libffi-dev libssl-dev file \
-    dumb-init && \
+    dumb-init sudo && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
 
 # Install Sonar Scanner
 RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip && \
@@ -46,6 +47,8 @@ RUN set -eux; \
   /home/docker/actions-runner/bin/installdependencies.sh; \
   chown -R docker /home/docker/actions-runner
 
+RUN echo "docker ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 # Install Snowflake CLI
 RUN pip install --no-cache-dir snowflake-cli-labs
 
@@ -54,15 +57,25 @@ ENV PATH="/usr/local/sonar-scanner/bin:/usr/local/bin:${PATH}"
 
 # Copy helper scripts
 COPY *.sh /usr/local/bin/
+COPY *.sqltest /usr/local/bin/
 RUN chmod +x /usr/local/bin/*.sh
+
+COPY unitth.jar /usr/local/bin/
+COPY unitth.properties /usr/local/bin/
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+RUN mkdir -p /usr/share/nginx/html && chown -R docker:docker /usr/share/nginx/html
+
+RUN mkdir -p /usr/local/bin/unit-report && chown -R docker:docker /usr/local/bin/unit-report
+
 # Set user and working directory
 USER docker
 WORKDIR /home/docker/actions-runner
+
+RUN mkdir -p "/home/docker/sql-unit-reports"
 
 # Entrypoint command
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint.sh"]

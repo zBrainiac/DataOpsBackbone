@@ -1,7 +1,3 @@
-# docker compose up --build
-# docker compose up runner1
-# docker compose down -v --remove-orphans
-
 services:
   sonarqube:
     image: brainiac/sonarqube
@@ -62,6 +58,18 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner_config:/actions-runner-config/${GITHUB_REPO_1}
+      - sql_unit_report:/home/docker/sql-report-vol
+      - ./sql-unit-reports:/home/docker/sql-unit-reports
+    networks:
+      - sonarnet
+
+  nginx-server:
+    image: nginx
+    container_name: nginx-server
+    ports:
+      - "8080:80"
+    volumes:
+      - sql_unit_report:/usr/share/nginx/html:ro
     networks:
       - sonarnet
 
@@ -70,6 +78,8 @@ volumes:
   sonarqube_extensions:
   postgresql:
   runner_config:
+  sql_unit_report:
+    name: sql_unit_report
 
 networks:
   sonarnet:
