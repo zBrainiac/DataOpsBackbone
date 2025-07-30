@@ -15,7 +15,6 @@
 # -----------------------------------------------------------------------------
 
 FAKE_RUN=false  # Default value
-
 set +e
 
 # --- Argument parsing ---
@@ -32,10 +31,11 @@ for ARG in "$@"; do
   esac
 done
 
+echo "ℹ️ FAKE_RUN is set to: $FAKE_RUN"
+
 # --- Validation ---
 if [[ -z "$CLONE_SCHEMA" || -z "$CLONE_DATABASE" || -z "$RELEASE_NUM" || -z "$CONNECTION_NAME" || -z "$TEST_FILE" ]]; then
   echo "❌ Missing required arguments."
-  echo "Usage: $0 --CLONE_SCHEMA=... --CLONE_DATABASE=... --RELEASE_NUM=... --CONNECTION_NAME=... --TEST_FILE=..."
   exit 1
 fi
 
@@ -44,172 +44,192 @@ if [[ ! -f "$TEST_FILE" ]]; then
   exit 1
 fi
 
-echo "ℹ️ FAKE_RUN is set to: $FAKE_RUN"
-
+CLONE_SCHEMA_WITH_RELEASE="${CLONE_SCHEMA}_${RELEASE_NUM}"
 UTC_TIMESTAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+TESTSUITE_NAME="${GITHUB_OWNER:-UnknownOwner}_${GITHUB_REPO:-UnknownRepo}_SQLValidation"
+echo "TESTSUITE_NAME: $TESTSUITE_NAME"
 
-# Detect Docker vs macOS and set JUNIT_REPORT_DIR accordingly
+# --- Runtime detection ---
 if [[ -f /.dockerenv ]] || grep -qE '/docker/|/lxc/' /proc/1/cgroup 2>/dev/null; then
   echo "🛠 Running inside Docker container"
   REPORT_DIR="/home/docker/sql-report-vol"
-  JUNIT_REPORT_DIR="/home/docker/sql-unit-reports"
-  COPY_TARGET="/usr/share/nginx/html/"
   RUNTIME="container"
+  JUNIT_REPORT_DIR="/home/docker/sql-unit-reports"
 elif [[ "$(uname)" == "Darwin" ]]; then
-  echo "🍏 Running on macOS"
-  REPORT_DIR="$(pwd)/unit-report"
-  JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
-  COPY_TARGET="/tmp/nginx/html"
+ echo "🍏 Running on macOS"
   RUNTIME="macos"
+  REPORT_DIR="$(pwd)/sql-report-vol"
+  JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
 else
   echo "🔧 Unknown system, defaulting to current dir"
-  REPORT_DIR="$(pwd)/unit-report"
-  JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
-  COPY_TARGET="/tmpnginx/html"
   RUNTIME="unknown"
+  REPORT_DIR="$(pwd)/sql-report-vol"
+  JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
 fi
 
-JUNIT_REPORT_DIR="${JUNIT_REPORT_DIR:-./sql-unit-reports}"
 JUNIT_REPORT_DIR="$(cd "$JUNIT_REPORT_DIR" && pwd)"
-
 REPORT_SUBDIR="$JUNIT_REPORT_DIR/$UTC_TIMESTAMP"
 mkdir -p "$REPORT_SUBDIR"
-JUNIT_REPORT_FILE="$REPORT_SUBDIR/TEST_sqlunit.xml"
-
-SUITE_NAME="${GITHUB_OWNER:-UnknownOwner}/${GITHUB_REPO:-UnknownRepo} SQL Validation"
-
+JUNIT_REPORT_FILE="$REPORT_SUBDIR/TEST_${UTC_TIMESTAMP}.xml"
 
 echo "REPORT_DIR: $REPORT_DIR"
 echo "JUNIT_REPORT_DIR: $JUNIT_REPORT_DIR"
 echo "JUNIT_REPORT_FILE: $JUNIT_REPORT_FILE"
-echo "COPY_TARGET: $COPY_TARGET"
-echo "RUNTIME: $RUNTIME"
 
-TEST_CASES=()
-FAIL_COUNT=0
+# --- Initialize test stats ---
+TOTAL_TESTS=0
+FAILED_TESTS=0
 SKIP_COUNT=0
-TOTAL_COUNT=0
-TOTAL_TIME=0  # Gesamtzeit aller Tests
+TOTAL_TIME=0
 
-# --- Run test ---
+# --- Start writing JUnit XML ---
+{
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > "$JUNIT_REPORT_FILE"
+  echo "<testsuite name=\"${TESTSUITE_NAME}\" tests=\"0\" failures=\"0\" skipped=\"0\" time=\"0.000\">"
+} > "$JUNIT_REPORT_FILE"
+
+# --- Test function ---
 run_test() {
-  local description="$1"
-  local raw_query="$2"
-  local expected="$3"
+  local TEST_NAME="$1"
+  local SQL_QUERY="$2"
+  local EXPECTED="$3"
+  local OUTPUT RESULT
+  local START_TIME=$(date +%s)
 
-  local query="${raw_query//\{\{SCHEMA\}\}/$CLONE_SCHEMA_WITH_RELEASE}"
-  query="${query//\{\{DATABASE\}\}/$CLONE_DATABASE}"
-
-  local start_time=$(date +%s)
-
-  echo -e "\n🔎 $description"
-  echo "📄 Query: $query"
-
-  local output
-  local exit_code
   if [[ "$FAKE_RUN" == true ]]; then
-    output='[{"RESULT":"'"$expected"'"}]'
-    exit_code=0
+    RESULT="$EXPECTED"   # simulate perfect match
+    EXIT_CODE=0
   else
-    output=$(snow sql -c "$CONNECTION_NAME" -q "$query" --format json 2>&1)
-    exit_code=$?
+    SQL_QUERY_PROCESSED=$(echo "$SQL_QUERY" | sed "s/{{DATABASE}}/$CLONE_DATABASE/g" | sed "s/{{SCHEMA}}/$CLONE_SCHEMA_WITH_RELEASE/g")
+    # use snow cli to execute command
+    OUTPUT=$(snow sql -q "$SQL_QUERY_PROCESSED" -c "$CONNECTION_NAME" --format=json)
+    RESULT=$(echo "$OUTPUT" | jq -r '.[0].RESULT')
+    EXIT_CODE=$?
   fi
 
-  local end_time=$(date +%s)
-  local duration=$(awk "BEGIN { d = $end_time - $start_time; if (d < 0.001) d = 0.001; printf \"%.3f\", d }")
+  local END_TIME=$(date +%s)
+  local DURATION=$(awk "BEGIN { d = $END_TIME - $START_TIME; if (d < 0.0001) d = 0.001; printf \"%.3f\", d }") || DURATION="0.001"
+  TOTAL_TIME=$(awk -v total="$TOTAL_TIME" -v add="$DURATION" 'BEGIN { printf "%.3f", total + add }')
 
-  # Gesamtzeit aufsummieren
-  TOTAL_TIME=$(awk "BEGIN {print $TOTAL_TIME + $duration}")
+  ((TOTAL_TESTS++))
 
-  echo "🪵 Output: $output"
-  echo "💥 Exit code: $exit_code"
-
-  ((TOTAL_COUNT++))
-
-  if [[ $exit_code -ne 0 ]]; then
-    ((FAIL_COUNT++))
-    TEST_CASES+=("<testcase name=\"$description\" classname=\"SQLValidation\" time=\"$duration\">
-  <failure message=\"snow CLI failed\">$(echo "$output" | sed 's/"/'\''/g')</failure>
-</testcase>")
+  if [[ "$EXIT_CODE" -ne 0 ]]; then
+    ((FAILED_TESTS++))
+    {
+      echo "  <testcase name=\"$TEST_NAME\" classname=\"SQLValidation\" time=\"$DURATION\">"
+      echo "    <failure message=\"snow CLI failed\">$OUTPUT</failure>"
+      echo "  </testcase>"
+    } >> "$JUNIT_REPORT_FILE"
     return
   fi
 
-  local result
-  result=$(echo "$output" | jq -r '.[0].RESULT // empty')
+  # Trim both actual and expected
+  RESULT_TRIMMED="$(echo "$RESULT" | xargs)"
+  EXPECTED_TRIMMED="$(echo "$EXPECTED" | xargs)"
 
-  if [[ -z "$result" ]]; then
-    ((FAIL_COUNT++))
-    TEST_CASES+=("<testcase name=\"$description\" classname=\"SQLValidation\" time=\"$duration\">
-  <failure message=\"No result\">Empty result from query</failure>
-</testcase>")
-    return
-  fi
+  if [[ "$RESULT_TRIMMED" != "$EXPECTED_TRIMMED" ]]; then
+  ((FAILED_TESTS++))
+    {
+      echo "  <testcase name=\"$TEST_NAME\" classname=\"SQLValidation\" time=\"$DURATION\">"
+      echo "    <failure message=\"Expected '$EXPECTED_TRIMMED', got '$RESULT_TRIMMED'\">"
+      echo "SQL: $SQL_QUERY"
+      echo "Expected (raw): $EXPECTED"
+      echo "Actual (raw): $RESULT"
+      echo "Expected (trimmed): $EXPECTED_TRIMMED"
+      echo "Actual (trimmed): $RESULT_TRIMMED"
+      echo "    </failure>"
+      echo "  </testcase>"
+    } >> "$JUNIT_REPORT_FILE"
 
-  if [[ "$result" != "$expected" ]]; then
-    ((FAIL_COUNT++))
-    TEST_CASES+=("<testcase name=\"$description\" classname=\"SQLValidation\" time=\"$duration\">
-  <failure message=\"Expected $expected, got $result\"/>
-</testcase>")
   else
-    TEST_CASES+=("<testcase name=\"$description\" classname=\"SQLValidation\" time=\"$duration\"/>")
+    echo "  <testcase name=\"$TEST_NAME\" classname=\"SQLValidation\" time=\"$DURATION\"/>" >> "$JUNIT_REPORT_FILE"
   fi
 }
 
-# --- Inject a fake, periodically failing test case ---
-#if [[ "$FAKE_RUN" == xxx ]]; then
-#  # Fail every 3rd UTC minute
-#  MOD=$(($(date -u +%M) % 2))
-#    echo "🧪 Adding failing fake test case (modulo 3 = 0)"
-#  if [[ "$MOD" -eq 0 ]]; then
-#    run_test "🧪 Fake Failing Test" "SELECT 'unexpected'" "expected"
-#  else
-#    echo "🧪 Adding passing fake test case (modulo 3 ≠ 0)"
-#    run_test "🧪 Fake Passing Test" "SELECT 'expected'" "expected"
-#  fi
-#fi
+# --- Fake test logic ---
+if [[ "$FAKE_RUN" == true ]]; then
+  MOD=$(($(date -u +%M) % 2))
+  if [[ "$MOD" -eq 0 ]]; then
+    run_test "🧪 Fake Failing Test" "SELECT 'unexpected'" "expected"
+  else
+    run_test "🧪 Fake Passing Test" "SELECT 'expected'" "expected"
+  fi
+fi
 
-
-# --- Load and run tests ---
+# --- Run actual tests from file ---
 while IFS='|' read -r description sql expected; do
   if [[ -z "$description" || "$description" =~ ^# ]]; then
     ((SKIP_COUNT++))
     trimmed_desc="$(echo "${description:-Unnamed Skipped Test}" | xargs)"
-    TEST_CASES+=("<testcase name=\"$trimmed_desc\" classname=\"SQLValidation\" time=\"0\"><skipped message=\"Commented or empty\"/></testcase>")
+    echo "  <testcase name=\"$trimmed_desc\" classname=\"SQLValidation\" time=\"0\"><skipped message=\"Commented or empty\"/></testcase>" >> "$JUNIT_REPORT_FILE"
     continue
   fi
-
+  echo "Processing: desc='$description', sql='$sql', expected='$expected'"
   run_test "$description" "$sql" "$expected"
 done < "$TEST_FILE"
 
-# --- Generate JUnit XML ---
-echo -e "\n📝 Writing JUnit report to $JUNIT_REPORT_FILE"
-{
-  echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-  TOTAL_TIME_FORMATTED=$(awk "BEGIN {printf \"%.3f\", $TOTAL_TIME}")
-  echo "<testsuite name=\"Snowflake SQL Validation\" tests=\"$TOTAL_COUNT\" failures=\"$FAIL_COUNT\" errors=\"0\" skipped=\"$SKIP_COUNT\" time=\"$TOTAL_TIME_FORMATTED\" timestamp=\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\">"
-  for case in "${TEST_CASES[@]}"; do
-    echo "$case"
-  done
-  echo "</testsuite>"
-} > "$JUNIT_REPORT_FILE"
+# --- Close XML ---
+echo "</testsuite>" >> "$JUNIT_REPORT_FILE"
 
-# --- Final status ---
-echo -e "\n📊 Test summary: $TOTAL_COUNT tests run, $FAIL_COUNT failed."
-if [[ $FAIL_COUNT -eq 0 ]]; then
+# --- Patch suite summary ---
+echo "JUNIT_REPORT_FILE: $JUNIT_REPORT_FILE"
+
+#if [[ -f "$JUNIT_REPORT_FILE" ]]; then
+#  sed -i '' \
+#    -e "s/time=\"0.000\"/time=\"$(awk -v t="$TOTAL_TIME" 'BEGIN {printf "%.3f", t}')\"/" \
+#    "$JUNIT_REPORT_FILE"
+#else
+#  echo "❌ JUNIT_REPORT_FILE not set or file does not exist"
+#fi
+
+TOTAL_TIME_FMT=$(printf "%.3f" "$TOTAL_TIME")
+
+if [[ "$RUNTIME" == "macos" ]]; then
+
+  sed -i '' \
+      -e "s/time=\"0.000\"/time=\"$(awk -v t="$TOTAL_TIME" 'BEGIN {printf "%.3f", t}')\"/" \
+      "$JUNIT_REPORT_FILE"
+
+  sed -i '' \
+    -e "s/tests=\"0\"/tests=\"$TOTAL_TESTS\"/" \
+    -e "s/failures=\"0\"/failures=\"$FAILED_TESTS\"/" \
+    -e "s/skipped=\"0\"/skipped=\"$SKIP_COUNT\"/" \
+    -e "s/time=\"0.000\"/time=\"$TOTAL_TIME_FMT\"/" \
+    "$JUNIT_REPORT_FILE"
+else
+
+  sed -i  \
+      -e "s/time=\"0.000\"/time=\"$(awk -v t="$TOTAL_TIME" 'BEGIN {printf "%.3f", t}')\"/" \
+      "$JUNIT_REPORT_FILE"
+
+  sed -i \
+    -e "s/tests=\"0\"/tests=\"$TOTAL_TESTS\"/" \
+    -e "s/failures=\"0\"/failures=\"$FAILED_TESTS\"/" \
+    -e "s/skipped=\"0\"/skipped=\"$SKIP_COUNT\"/" \
+    -e "s/time=\"0.000\"/time=\"$TOTAL_TIME_FMT\"/" \
+    "$JUNIT_REPORT_FILE"
+fi
+
+# --- Final summary ---
+echo -e "\n📊 Summary: $TOTAL_TESTS total, $FAILED_TESTS failed, $SKIP_COUNT skipped."
+if [[ "$FAILED_TESTS" -eq 0 ]]; then
   echo "✅ All tests passed."
 else
-  echo "❌ Some tests failed. See $JUNIT_REPORT_FILE for details."
+  echo "❌ Some tests failed. See report at $JUNIT_REPORT_FILE"
 fi
 
-# --- Run unitth.jar on all report subfolders ---
-echo -e "\n🚀 Running unitth.jar on all reports in $JUNIT_REPORT_DIR ..."
-echo "📁 Using report dir: $REPORT_DIR"
+# --- Generate Unit History Report with  unitth.jar if available ---
 mkdir -p "$REPORT_DIR"
-java -Dunitth.report.dir="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
 
-# Exit with original test status code
-if [[ $FAIL_COUNT -eq 0 ]]; then
-  exit 0
-else
-  exit 1
+if command -v java &>/dev/null && [[ -f unitth.jar ]]; then
+  echo "🚀 Running unitth.jar ..."
+ # java -Dunitth.report.dir="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
+  java \
+    -Dunitth.report.dir="$REPORT_DIR" \
+    -Dunitth.html.report.path="$REPORT_DIR" \
+    -jar unitth.jar "$JUNIT_REPORT_DIR"/*
+
 fi
+
+# --- Exit with correct status ---
+[[ "$FAILED_TESTS" -eq 0 ]] && exit 0 || exit 1

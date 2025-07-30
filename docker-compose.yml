@@ -69,6 +69,7 @@ services:
     ports:
       - "8080:80"
     volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - sql_unit_report:/usr/share/nginx/html:ro
     networks:
       - sonarnet

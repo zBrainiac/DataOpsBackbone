@@ -2,7 +2,7 @@
 set -e
 
 # Step 0: Clean up (optional)
-docker compose down -v --remove-orphans
+# docker compose down -v --remove-orphans
 
 # Detect architecture
 ARCH=$(uname -m)
