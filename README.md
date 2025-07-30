@@ -1,6 +1,7 @@
 # 🧠 **DataOps Unchained: Infrastructure that Scales**
 
 [![Update Local Repository and Run Sonar Scanner](https://github.com/zBrainiac/mother-of-all-Projects/actions/workflows/update-local-repo.yml/badge.svg)](https://github.com/zBrainiac/mother-of-all-Projects/actions/workflows/update-local-repo.yml)
+[![Docker Build and Push to Docker Hub (Multi-Arch)](https://github.com/zBrainiac/sql_quality_check/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/zBrainiac/sql_quality_check/actions/workflows/docker-publish.yml)
 
 > **A hands-on reference architecture for fully automated SQL code quality pipelines using SonarQube, GitHub Actions, and Snowflake.**
 
@@ -46,10 +47,10 @@ It combines:
 
 ## 🧱 Project Structure
 
-- **[`mother-of-all-Projects`](https://github.com/zBrainiac/mother-of-all-Projects)**  
+- **[mother-of-all-Projects](https://github.com/zBrainiac/mother-of-all-Projects)**  
   GitHub workflows, SQL refactoring logic, Snowflake deployment scripts, and validation via SQLUnit.
 
-- **[`sql_quality_check`](https://github.com/zBrainiac/sql_quality_check)**  
+- **[DataOps Backbone](https://github.com/zBrainiac/DataOpsBackbone)**  
   Dockerized infrastructure stack for:
   - SonarQube + PostgreSQL
   - GitHub self-hosted runners
@@ -115,6 +116,10 @@ Backups of these rules, which can be restored as a Quality Profile, are availabl
 
 ### Technical dept
 ![Technical dept](images/sq_technical_dept.png)
+
+
+### Monitor the history of test case execution
+![unitth_overview.png](images/unitth_overview.png)
 
 ## ⚡ Quick Setup Guide
 
@@ -197,6 +202,8 @@ Upload the following secrets to GitHub:
 2. Access SonarQube at: [http://localhost:9000](http://localhost:9000)  
   **Login**: `admin` / `ThisIsNotSecure1234!` (default 'admin')
 3. Trigger your GitHub workflow
+4. Check results in sonarqube 
+5. monitor SQLUnit test results (incl. history) at: [http://localhost:8080](http://localhost:9080/index.html)
 
 ---
 

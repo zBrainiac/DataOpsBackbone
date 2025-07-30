@@ -174,14 +174,6 @@ echo "</testsuite>" >> "$JUNIT_REPORT_FILE"
 # --- Patch suite summary ---
 echo "JUNIT_REPORT_FILE: $JUNIT_REPORT_FILE"
 
-#if [[ -f "$JUNIT_REPORT_FILE" ]]; then
-#  sed -i '' \
-#    -e "s/time=\"0.000\"/time=\"$(awk -v t="$TOTAL_TIME" 'BEGIN {printf "%.3f", t}')\"/" \
-#    "$JUNIT_REPORT_FILE"
-#else
-#  echo "❌ JUNIT_REPORT_FILE not set or file does not exist"
-#fi
-
 TOTAL_TIME_FMT=$(printf "%.3f" "$TOTAL_TIME")
 
 if [[ "$RUNTIME" == "macos" ]]; then
@@ -228,7 +220,6 @@ if command -v java &>/dev/null && [[ -f unitth.jar ]]; then
     -Dunitth.report.dir="$REPORT_DIR" \
     -Dunitth.html.report.path="$REPORT_DIR" \
     -jar unitth.jar "$JUNIT_REPORT_DIR"/*
-
 fi
 
 # --- Exit with correct status ---
