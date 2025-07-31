@@ -25,7 +25,6 @@ for ARG in "$@"; do
     --RELEASE_NUM=*) RELEASE_NUM="${ARG#*=}" ;;
     --CONNECTION_NAME=*) CONNECTION_NAME="${ARG#*=}" ;;
     --TEST_FILE=*) TEST_FILE="${ARG#*=}" ;;
-    --JUNIT_REPORT_DIR=*) JUNIT_REPORT_DIR="${ARG#*=}" ;;
     --FAKE_RUN=*) FAKE_RUN="${ARG#*=}" ;;
     *) echo "❌ Unknown argument: $ARG"; exit 1 ;;
   esac
@@ -213,14 +212,18 @@ fi
 # --- Generate Unit History Report with  unitth.jar if available ---
 mkdir -p "$REPORT_DIR"
 
-if command -v java &>/dev/null && [[ -f unitth.jar ]]; then
-  echo "🚀 Running unitth.jar ..."
- # java -Dunitth.report.dir="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
-  java \
-    -Dunitth.report.dir="$REPORT_DIR" \
-    -Dunitth.html.report.path="$REPORT_DIR" \
-    -jar unitth.jar "$JUNIT_REPORT_DIR"/*
-fi
+echo "🚀 Running unitth.jar ..."
+echo "REPORT_DIR: $REPORT_DIR"
+echo "JUNIT_REPORT_DIR: $JUNIT_REPORT_DIR"
+echo "Executing: java -Dunitth.report.dir=\"$REPORT_DIR\" -Dunitth.html.report.path=\"$REPORT_DIR\" -jar unitth.jar $JUNIT_REPORT_DIR/*"
+
+cd /usr/local/bin && java -Dunitth.report.dir="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
 
 # --- Exit with correct status ---
 [[ "$FAILED_TESTS" -eq 0 ]] && exit 0 || exit 1
+
+
+#java -Dunitth.report.dir="$REPORT_DIR" -Dunitth.html.report.path="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
+#java -Dunitth.report.dir=/home/docker/sql-report-vol -jar unitth.jar /home/docker/sql-unit-reports/*
+
+#cd /usr/local/bin && java -Dunitth.report.dir="/home/docker/sql-report-vol" -Dunitth.html.report.path="/home/docker/sql-report-vol" -jar unitth.jar /home/docker/sql-unit-reports/*
