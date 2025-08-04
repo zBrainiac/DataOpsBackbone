@@ -1,7 +1,4 @@
 /.env
-/export_sonarqube_config.sh
-/import_sonarqube_config.sh
-/recreate_custom_profiles.sh
 /sec.txt
 /.idea/
 /.secrets
@@ -14,3 +11,4 @@
 /backup/backup.sql
 /backup/backup.zip
 /github-runner/dependencies/
+/docs/
