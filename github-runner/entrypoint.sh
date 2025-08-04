@@ -88,4 +88,22 @@ echo "Registration token acquired. Configuring runner..."
             --unattended --replace
 
 # Start runner as PID 1
-exec ./run.sh
+echo "Starting GitHub Actions runner..."
+
+./run.sh > >(tee /tmp/runner-output.log) 2>&1 &
+RUNNER_PID=$!
+
+# Monitor for session conflict
+( tail -n 0 -F /tmp/runner-output.log & echo $! >&3 ) 3>tail.pid | while read -r line; do
+    echo "$line"
+    if [[ "$line" == *"A session for this runner already exists."* ]]; then
+        echo "❌ Detected session conflict. Killing runner process to force container restart..."
+        kill "$RUNNER_PID" 2>/dev/null
+        kill "$(cat tail.pid)" 2>/dev/null
+        sleep 2
+        exit 1
+    fi
+done
+
+# Wait for runner process to finish (if no conflict triggered it)
+wait "$RUNNER_PID"

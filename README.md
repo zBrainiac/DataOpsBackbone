@@ -60,7 +60,7 @@ It combines:
 ## SQL Linting Rules and Regex Patterns
 This list provides a few examples of SQL validation rules, each of which is paired with a regular expression (regex) that can be used to identify non-compliant code using the Community Text plugin of SonarQube.
 
-Backups of these rules, which can be restored as a Quality Profile, are available in the repository ([link](backup/2025-07-23_quality_profiles_text_plugin.xml)).
+Backups of these rules, which can be restored as a Quality Profile, are available in the repository ([link](backup/2025-08-04_quality_profiles_text_plugin.xml)).
 
 ### 1. Disallow `CREATE SCHEMA` without `IF NOT EXISTS` or `REPLACE`
 ```regex
