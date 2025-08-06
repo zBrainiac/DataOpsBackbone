@@ -6,7 +6,7 @@
 # -----------------------------------------------------------------------------
 
 # --- Default values ---
-CONNECTION_NAME="sfseeurope-demo_ci_user"
+CONNECTION_NAME="sfseeurope-svc_cicd_user"
 
 # Parse arguments
 for ARG in "$@"; do

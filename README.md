@@ -10,9 +10,18 @@
 ## Why / What / How
 
 ### Why?
+#### In large, federated organizations, scaling analytics isn’t (just) a tech challenge — it’s an operational one.
 
-In large, federated organizations, scaling analytics isn’t just a tech challenge—**it’s an operational one**.  
-Manual QA breaks at scale. When you're pushing **1,000+ deployments a day**, **automation, governance, and consistency** are essential.
+From a technological and operational perspective, automation, governance and consistency are vital for scaling analytics in large, federated organisations. With agile methodology and modularisation, deployment volume can rise to hundreds or thousands per day, so manual QA simply cannot keep pace. For example, if 15 analytics teams were to deploy changes daily, the number of full-time reviewers required for manual reviews would be prohibitively high, resulting in bottlenecks, missed checks and an increased risk of inconsistent standards and data incidents.
+DataOpsBackbone addresses these issues by automating every critical step:
+
+**Quality Gates** leverage **SonarQube** code scans to enforce SQL and customisable coding rules based on regular expressions, which are applied automatically with every git push request. For example, forgetting to prefix a schema name or hardcoding a database name triggers an automated block and feedback, thereby enforcing standards before code can be shipped.
+- Releases are versioned and tested against zero-copy clones before being packaged through structured, traceable GitHub Actions workflows. This keeps production safe from changes that have not been properly tested.
+- Governance is built in: rules such as 'no grants to PUBLIC' or 'only UTC TIMESTAMP allowed' are continuously enforced, and all compliance-relevant data (such as SQL code scans and test results) is logged for auditing purposes.
+- Teams have full transparency and can be agile and reduce technical debt themselves. Automation enforces rules and monitors testing over time, so centralised approvals no longer become a bottleneck.
+
+This setup offers repeatability, auditability and peace of mind, enabling new teams to get up and running quickly and allowing developers to focus on creating value rather than policing standards. The showcased projects are practical blueprints for achieving reliable, scalable analytics operations with Snowflake and GitHub Actions, not just demos.
+
 
 This showcase project, together with [**Mother-of-all-Projects**](https://github.com/zBrainiac/mother-of-all-Projects) — demonstrates a fully automated DataOps setup designed to enforce SQL code quality, structure release flows, and scale confidently with Snowflake and GitHub Actions.
 
@@ -135,34 +144,53 @@ Backups of these rules, which can be restored as a Quality Profile, are availabl
 
 ### Step 1: Snowflake Config
 
-`~/.snowflake/config.toml`
+
+
+
+```SQL
+USE ROLE ACCOUNTADMIN;
+
+CREATE USER SVC_CICD_USER
+  LOGIN_NAME = 'SVC_CICD_USER'
+  PASSWORD = NULL
+  MUST_CHANGE_PASSWORD = FALSE
+  DEFAULT_ROLE = ACCOUNTADMIN
+  COMMENT = 'Service account for CI/CD automation (OAuth/PAT)';
+
+GRANT ROLE ACCOUNTADMIN TO USER SVC_CICD_USER;
+
+CREATE or ALTER authentication policy CICD_AUTH_POLICY
+  authentication_methods = ('PASSWORD', 'OAUTH', 'KEYPAIR', 'PROGRAMMATIC_ACCESS_TOKEN')
+  pat_policy = (
+    default_expiry_in_days=7,
+    max_expiry_in_days=90,
+    network_policy_evaluation = ENFORCED_NOT_REQUIRED
+    );
+
+ALTER USER IF EXISTS SVC_CICD_USER ADD PAT CICD_PAT ROLE_RESTRICTION = 'ACCOUNTADMIN' DAYS_TO_EXPIRY = 30 COMMENT = 'New PAT for Snow CLI';
+-- copy token
+
+SHOW USER PATS FOR USER SVC_CICD_USER;
+```
+
+Create a snow cli config `~/.snowflake/config.toml`
 ```toml
-[connections.sfseeurope-demo_ci_user]
-account = "<your_account>"
-user = "ci_user"
-database = "<db>"
-schema = "<schema>"
-warehouse = "<warehouse>"
-role = "SYSADMIN"
-authenticator = "SNOWFLAKE_JWT"
-private_key_file = "/path/to/private_key.pem"
+[connections.sfseeurope-svc_cicd_user]
+account = "sfseeurope-demo_mdaeppen"
+user = "SVC_CICD_USER"
+database = "MD_TEST"
+schema = "IOT"
+warehouse = "MD_TEST_WH"
+authenticator = "snowflake"
+password = "<your token>"
 ```
 
-`private_key.pem`
-```
------BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCn4h4yObmnbPM3
-...
-SN3iZYUz88eg2c3nbQkXdQg=
------END PRIVATE KEY-----
-```
-
-`.env`
+Create a local `.env` for testing
 ```dotenv
 # GitHub
 GH_RUNNER_TOKEN=<...>
-GITHUB_OWNER=zBrainiac
-GITHUB_REPO_1=mother-of-all-Projects
+GITHUB_OWNER=<your GitRepo>
+GITHUB_REPO_1=<your Projects>
 
 # SonarQube
 POSTGRES_USER=<...>
@@ -172,8 +200,7 @@ SONAR_JDBC_USERNAME=<...>
 SONAR_JDBC_PASSWORD=<...>
 
 # Snowflake
-CONNECTION_NAME=sfseeurope-demo_ci_user
-SNOW_PRIVATE_KEY_PATH=/path/to/private_key.pem
+CONNECTION_NAME=sfseeurope-svc_cicd_user
 ```
 
 ---
@@ -182,13 +209,11 @@ SNOW_PRIVATE_KEY_PATH=/path/to/private_key.pem
 
 ```bash
 base64 -b 0 -i ~/.snowflake/config.toml | tr -d '\n' > SNOW_CONFIG_B64
-base64 -i ~/.snowflake/private_key.pem | tr -d '\n' > SNOW_KEY_B64
 ```
 
-Upload the following secrets to GitHub:
+Upload the following secrets to GitHub repo:
 
 - `SNOW_CONFIG_B64`
-- `SNOW_KEY_B64`
 - `SONAR_TOKEN` (see below step 3.)
 
 ---

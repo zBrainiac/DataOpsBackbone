@@ -8,10 +8,11 @@
 #   --CLONE_SCHEMA=IOT_CLONE \
 #   --CLONE_DATABASE=MD_TEST \
 #   --RELEASE_NUM=42 \
-#   --CONNECTION_NAME=sfseeurope-demo_ci_user
+#   --CONNECTION_NAME=sfseeurope-svc_cicd_user
 #
-# cd /usr/local/bin && ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-demo_ci_user --TEST_FILE=tests.sqltest --JUNIT_REPORT_DIR=/tmp/sql-unit-report
-# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-demo_ci_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
+# cd /usr/local/bin && ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --JUNIT_REPORT_DIR=/tmp/sql-unit-report
+# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
+./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
 # -----------------------------------------------------------------------------
 
 FAKE_RUN=false  # Default value

@@ -10,7 +10,7 @@
 #   --RELEASE_NUM=50 \
 #   --CONNECTION_NAME=ci_user
 #
-# ./snowflake-deploy-structure_v2.sh --PROJECT_KEY=mother-of-all-Projects --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-demo_ci_user
+# ./snowflake-deploy-structure_v2.sh --PROJECT_KEY=mother-of-all-Projects --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user
 # -----------------------------------------------------------------------------
 
 set -e

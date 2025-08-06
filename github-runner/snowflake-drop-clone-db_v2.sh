@@ -8,7 +8,7 @@
 #   --RELEASE_NUM=42 \
 #   --CONNECTION_NAME=ci_user_test
 #
-# ./snowflake-drop-clone-db_v2.sh --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-demo_ci_user
+# ./snowflake-drop-clone-db_v2.sh --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user
 # -----------------------------------------------------------------------------
 
 set -e

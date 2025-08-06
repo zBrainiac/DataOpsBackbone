@@ -10,7 +10,7 @@
 #   [--OUTPUT_DIR=/home/docker/actions-runner/_work/my_project/my_project] \
 #   --CONNECTION_NAME=ci_user_test
 #
-# ./snowflake-extract-dependencies_v1.sh --SOURCE_SOURCE_DATABASE=MD_TEST --SOURCE_SCHEMA=IOT_CLONE_42 --OUTPUT_DIR=. --CONNECTION_NAME=sfseeurope-demo_ci_user
+# ./snowflake-extract-dependencies_v1.sh --SOURCE_DATABASE=MD_TEST --SOURCE_SCHEMA=IOT_CLONE_42 --OUTPUT_DIR=/tmp --CONNECTION_NAME=sfseeurope-svc_cicd_user
 #
 # -----------------------------------------------------------------------------
 

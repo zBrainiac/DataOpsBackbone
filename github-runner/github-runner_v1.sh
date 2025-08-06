@@ -31,9 +31,9 @@ echo "$SNOW_KEY_B64" | base64 --decode > "$SNOW_DIR/snowflake_private_key.pem"
 chmod 600 "$SNOW_DIR/snowflake_private_key.pem"
 
 # --- Override private_key_file path in config.toml ---
-PRIVATE_KEY_PATH="$SNOW_DIR/snowflake_private_key.pem"
-if grep -q '^private_key_file\s*=' "$SNOW_DIR/config.toml"; then
-  sed -i.bak "s|^private_key_file\s*=.*|private_key_file = \"$PRIVATE_KEY_PATH\"|" "$SNOW_DIR/config.toml"
-else
-  echo "private_key_file = \"$PRIVATE_KEY_PATH\"" >> "$SNOW_DIR/config.toml"
-fi
+#PRIVATE_KEY_PATH="$SNOW_DIR/snowflake_private_key.pem"
+#if grep -q '^private_key_file\s*=' "$SNOW_DIR/config.toml"; then
+#  sed -i.bak "s|^private_key_file\s*=.*|private_key_file = \"$PRIVATE_KEY_PATH\"|" "$SNOW_DIR/config.toml"
+#else
+#  echo "private_key_file = \"$PRIVATE_KEY_PATH\"" >> "$SNOW_DIR/config.toml"
+#fi
