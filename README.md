@@ -66,6 +66,26 @@ It combines:
   - Local development/testing
 
 ---
+## Architecture Overview - Data objects
+
+The showcase is built around two distinct data domains, each represented as an individual database within the same Snowflake account. This approach allows for logical isolation and independent management of domain-specific data assets.
+
+Within each domain (database), schemas are strategically utilized to achieve two key objectives:
+* **Maturity Levels:** Schemas separate data objects based on their maturity level (e.g., raw, curated, conformed). This provides a clear path for data as it progresses through various transformation stages.
+* **Versioning:** Schemas also incorporate versioning for underlying database objects like tables, views, stages and procedures. This ensures traceability, facilitates rollbacks, and supports agile development by allowing iterative changes without disrupting existing consumers.
+
+### Why This Approach?
+1. **Improved Organization:** Data assets are logically grouped by business domain, making them easier to discover and manage.
+2. **Enhanced Data Governance:** Clear maturity levels and versioning promote better control over data quality and evolution.
+3. **Scalability & Maintainability:** The modular design reduces interdependencies, simplifying development, testing, and maintenance.
+4. **Demonstrates Best Practices:** Provides a practical example of implementing a domain-driven data architecture in Snowflake.
+
+![DataOps_SF_object_structure.png](images/DataOps_SF_object_structure.png)
+
+
+### The rules: to drive modularization
+![DataOps_SF_dep_rules.png](images/DataOps_SF_dep_rules.png)
+---
 ## SQL Linting Rules and Regex Patterns
 This list provides a few examples of SQL validation rules, each of which is paired with a regular expression (regex) that can be used to identify non-compliant code using the Community Text plugin of SonarQube.
 
@@ -142,35 +162,20 @@ Backups of these rules, which can be restored as a Quality Profile, are availabl
 
 ## Quick Setup Guide
 
-### Step 1: Snowflake Config
+
+### Step 1: Create all Snowflake objects
+The [DataOps_init.sql](DataOps_init.sql) script creates all required database objects, including users and roles.
+Simply log in to your Snowflake account and create all your objects at once.
 
 
+### Step 2: Snowflake Config
 
 
 ```SQL
-USE ROLE ACCOUNTADMIN;
+ALTER USER IF EXISTS SVC_CICD ADD PAT CICD_PAT ROLE_RESTRICTION = 'ACCOUNTADMIN' DAYS_TO_EXPIRY = 30 COMMENT = 'New PAT for Snow CLI';
+-- copy <your token>
 
-CREATE USER SVC_CICD_USER
-  LOGIN_NAME = 'SVC_CICD_USER'
-  PASSWORD = NULL
-  MUST_CHANGE_PASSWORD = FALSE
-  DEFAULT_ROLE = ACCOUNTADMIN
-  COMMENT = 'Service account for CI/CD automation (OAuth/PAT)';
-
-GRANT ROLE ACCOUNTADMIN TO USER SVC_CICD_USER;
-
-CREATE or ALTER authentication policy CICD_AUTH_POLICY
-  authentication_methods = ('PASSWORD', 'OAUTH', 'KEYPAIR', 'PROGRAMMATIC_ACCESS_TOKEN')
-  pat_policy = (
-    default_expiry_in_days=7,
-    max_expiry_in_days=90,
-    network_policy_evaluation = ENFORCED_NOT_REQUIRED
-    );
-
-ALTER USER IF EXISTS SVC_CICD_USER ADD PAT CICD_PAT ROLE_RESTRICTION = 'ACCOUNTADMIN' DAYS_TO_EXPIRY = 30 COMMENT = 'New PAT for Snow CLI';
--- copy token
-
-SHOW USER PATS FOR USER SVC_CICD_USER;
+SHOW USER PATS FOR USER SVC_CICD;
 ```
 
 Create a snow cli config `~/.snowflake/config.toml`

@@ -12,7 +12,7 @@
 #
 # cd /usr/local/bin && ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --JUNIT_REPORT_DIR=/tmp/sql-unit-report
 # ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
-./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
+# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
 # -----------------------------------------------------------------------------
 
 FAKE_RUN=false  # Default value
@@ -67,9 +67,17 @@ else
   JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
 fi
 
+# Create directory if it doesn't exist, then get absolute path
+mkdir -p "$JUNIT_REPORT_DIR"
 JUNIT_REPORT_DIR="$(cd "$JUNIT_REPORT_DIR" && pwd)"
 REPORT_SUBDIR="$JUNIT_REPORT_DIR/$UTC_TIMESTAMP"
+echo "Creating directory: $REPORT_SUBDIR"
 mkdir -p "$REPORT_SUBDIR"
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to create directory: $REPORT_SUBDIR"
+  echo "❌ Falling back to JUNIT_REPORT_DIR: $JUNIT_REPORT_DIR"
+  REPORT_SUBDIR="$JUNIT_REPORT_DIR"
+fi
 JUNIT_REPORT_FILE="$REPORT_SUBDIR/TEST_${UTC_TIMESTAMP}.xml"
 
 echo "REPORT_DIR: $REPORT_DIR"
@@ -102,9 +110,24 @@ run_test() {
   else
     SQL_QUERY_PROCESSED=$(echo "$SQL_QUERY" | sed "s/{{DATABASE}}/$CLONE_DATABASE/g" | sed "s/{{SCHEMA}}/$CLONE_SCHEMA_WITH_RELEASE/g")
     # use snow cli to execute command
-    OUTPUT=$(snow sql -q "$SQL_QUERY_PROCESSED" -c "$CONNECTION_NAME" --format=json)
-    RESULT=$(echo "$OUTPUT" | jq -r '.[0].RESULT')
-    EXIT_CODE=$?
+    # Execute snow CLI with error handling
+    OUTPUT=$(snow sql -q "$SQL_QUERY_PROCESSED" -c "$CONNECTION_NAME" --format=json 2>&1)
+    CLI_EXIT_CODE=$?
+    
+    if [ $CLI_EXIT_CODE -eq 0 ]; then
+      RESULT=$(echo "$OUTPUT" | jq -r '.[0].RESULT' 2>/dev/null)
+      if [ $? -ne 0 ]; then
+        echo "❌ Failed to parse JSON output: $OUTPUT"
+        EXIT_CODE=1
+        RESULT="JSON_PARSE_ERROR"
+      else
+        EXIT_CODE=0
+      fi
+    else
+      echo "❌ Snow CLI failed with exit code $CLI_EXIT_CODE: $OUTPUT"
+      EXIT_CODE=$CLI_EXIT_CODE
+      RESULT="CLI_ERROR"
+    fi
   fi
 
   local END_TIME=$(date +%s)
@@ -129,6 +152,10 @@ run_test() {
 
   if [[ "$RESULT_TRIMMED" != "$EXPECTED_TRIMMED" ]]; then
   ((FAILED_TESTS++))
+    echo "❌ TEST FAILED: $TEST_NAME"
+    echo "   Expected: '$EXPECTED_TRIMMED'"
+    echo "   Actual:   '$RESULT_TRIMMED'"
+    echo "   SQL: $SQL_QUERY"
     {
       echo "  <testcase name=\"$TEST_NAME\" classname=\"SQLValidation\" time=\"$DURATION\">"
       echo "    <failure message=\"Expected '$EXPECTED_TRIMMED', got '$RESULT_TRIMMED'\">"
@@ -142,6 +169,7 @@ run_test() {
     } >> "$JUNIT_REPORT_FILE"
 
   else
+    echo "✅ TEST PASSED: $TEST_NAME"
     echo "  <testcase name=\"$TEST_NAME\" classname=\"SQLValidation\" time=\"$DURATION\"/>" >> "$JUNIT_REPORT_FILE"
   fi
 }

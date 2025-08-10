@@ -9,7 +9,6 @@
 set -e
 
 # --- Default values ---
-CONNECTION_NAME="sfseeurope-svc_cicd_user"
 BASE_WORKSPACE="$HOME/workspace"
 
 # --- Parse arguments ---

@@ -10,10 +10,12 @@
 #   --RELEASE_NUM=42 \
 #   --CONNECTION_NAME=ci_user_test
 #
-# ./snowflake-clone-db_v2.sh --SOURCE_DATABASE=MD_TEST --SOURCE_SCHEMA=IOT_REF_20250711 --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=82 --CONNECTION_NAME=sfseeurope-svc_cicd_user
+# ./snowflake-clone-db_v2.sh --SOURCE_DATABASE=DataOps --SOURCE_SCHEMA=IOT_RAW_v001 --CLONE_DATABASE=DataOps --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=82 --CONNECTION_NAME=sfseeurope-svc_cicd
 # -----------------------------------------------------------------------------
 
 set -e
+
+# --- Default values ---
 
 # Parse arguments
 for ARG in "$@"; do

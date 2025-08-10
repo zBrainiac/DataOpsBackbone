@@ -1,5 +1,4 @@
 # docker build -t local-github-runner
-
 FROM sonarqube:latest
 
 USER root

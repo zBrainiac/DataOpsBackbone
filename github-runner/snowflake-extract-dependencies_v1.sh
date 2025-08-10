@@ -10,12 +10,13 @@
 #   [--OUTPUT_DIR=/home/docker/actions-runner/_work/my_project/my_project] \
 #   --CONNECTION_NAME=ci_user_test
 #
-# ./snowflake-extract-dependencies_v1.sh --SOURCE_DATABASE=MD_TEST --SOURCE_SCHEMA=IOT_CLONE_42 --OUTPUT_DIR=/tmp --CONNECTION_NAME=sfseeurope-svc_cicd_user
+# ./snowflake-extract-dependencies_v1.sh --SOURCE_DATABASE=DATAOPS --SOURCE_SCHEMA=IOT_RAW_v001 --OUTPUT_DIR=/tmp --CONNECTION_NAME=sfseeurope-svc_cicd
 #
 # -----------------------------------------------------------------------------
 
 set -e
 
+# --- Default values ---
 OUTPUT_FILE_NAME="output_dependencies.csv"
 
 # Parse arguments
@@ -54,10 +55,10 @@ FINAL_OUTPUT_FILE="${FINAL_OUTPUT_DIR}/${OUTPUT_FILE_NAME}"
 # Ensure output directory exists
 mkdir -p "$FINAL_OUTPUT_DIR"
 
-echo "📦 Extracting dependencies for schema: $SOURCE_DATABASE.$SOURCE_SCHEMA"
-echo "🔗 Using connection: $CONNECTION_NAME"
-echo "📂 Output directory: $FINAL_OUTPUT_DIR"
-echo "📝 Output file: $FINAL_OUTPUT_FILE"
+echo "Extracting dependencies for schema: $SOURCE_DATABASE.$SOURCE_SCHEMA"
+echo "Using connection: $CONNECTION_NAME"
+echo "Output directory: $FINAL_OUTPUT_DIR"
+echo "Output file: $FINAL_OUTPUT_FILE"
 
 # Run the dependency extraction SQL
 snow sql -c "$CONNECTION_NAME" --format=csv -q "
@@ -78,10 +79,17 @@ SELECT
     CASE
         WHEN dep_obj.REFERENCED_SCHEMA <> dep_obj.REFERENCING_SCHEMA THEN 'cross_schema_true'
         ELSE 'cross_schema_false'
-    END AS cross_schema
+    END AS cross_schema,
+    CASE
+        WHEN dep_obj.REFERENCED_DATABASE <> dep_obj.REFERENCING_DATABASE AND dep_obj.REFERENCED_SCHEMA LIKE 'REF_%' THEN 'cross_db_ref_true'
+        ELSE 'cross_db_ref_false'
+    END AS cross_db_ref,
+    CASE
+        WHEN dep_obj.REFERENCED_SCHEMA <> dep_obj.REFERENCING_SCHEMA AND dep_obj.REFERENCED_SCHEMA LIKE 'REF_%' THEN 'cross_schema_ref_true'
+        ELSE 'cross_schema_ref_false'
+    END AS cross_schema_ref
   FROM SNOWFLAKE.ACCOUNT_USAGE.OBJECT_DEPENDENCIES dep_obj
-   WHERE dep_obj.referenced_database = '$SOURCE_DATABASE'
-     AND dep_obj.referenced_schema = '$SOURCE_SCHEMA';" > "$FINAL_OUTPUT_FILE"
+   WHERE dep_obj.referenced_database = '$SOURCE_DATABASE';" > "$FINAL_OUTPUT_FILE"
 
 if [ $? -eq 0 ]; then
   echo "✅ Dependencies written to $FINAL_OUTPUT_FILE"

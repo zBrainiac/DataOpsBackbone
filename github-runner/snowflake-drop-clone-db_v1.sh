@@ -5,8 +5,10 @@
 # ./snowflake-drop-clone-db_v1.sh --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42
 # -----------------------------------------------------------------------------
 
+set -e
+
 # --- Default values ---
-CONNECTION_NAME="sfseeurope-svc_cicd_user"
+
 # Parse named parameters
 for ARG in "$@"; do
   case $ARG in

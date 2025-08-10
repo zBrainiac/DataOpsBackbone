@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # github-workflow-verification_v1.sh
-# shasum -a 256 update-local-repo.yml
+# shasum -a 256 .github/workflows/update-local-repo.yml
 # Validates the SHA256 hash of the update-local-repo.yml GitHub Actions workflow file
-# f668ceb2a84cf9657cb6ad7472bc294876a044e8b8a30cbbfb328fa5ad7fed9c  update-local-repo.yml
+# f55430890c2b41ee279961be02fe64462032f961e362950e185a21ec63e0f263  update-local-repo.yml
 
 # --- Runtime detection ---
 if [[ -f /.dockerenv ]] || grep -qE '/docker/|/lxc/' /proc/1/cgroup 2>/dev/null; then
@@ -19,7 +19,7 @@ fi
 
 
 # === CONFIGURATION ===
-EXPECTED_HASH="f668ceb2a84cf9657cb6ad7472bc294876a044e8b8a30cbbfb328fa5ad7fed9c"
+EXPECTED_HASH="f55430890c2b41ee279961be02fe64462032f961e362950e185a21ec63e0f263"
 
 # === VALIDATION ===
 
