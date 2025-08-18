@@ -1,5 +1,5 @@
 # Base image
-FROM python:3.10.18-slim
+FROM eclipse-temurin:17-jre-jammy
 
 # Set build arguments
 ARG TARGETARCH
