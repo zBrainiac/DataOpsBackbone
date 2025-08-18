@@ -6,13 +6,13 @@
 # Usage:
 # ./sql_validation_v2.sh \
 #   --CLONE_SCHEMA=IOT_CLONE \
-#   --CLONE_DATABASE=MD_TEST \
+#   --CLONE_DATABASE=DataOps \
 #   --RELEASE_NUM=42 \
 #   --CONNECTION_NAME=sfseeurope-svc_cicd_user
 #
-# cd /usr/local/bin && ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --JUNIT_REPORT_DIR=/tmp/sql-unit-report
-# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
-# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=MD_TEST --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
+# cd /usr/local/bin && ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=DataOps --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --JUNIT_REPORT_DIR=/tmp/sql-unit-report
+# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=DataOps --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
+# ./sql_validation_v4.sh --CLONE_SCHEMA=IOT_CLONE --CLONE_DATABASE=DataOps --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user --TEST_FILE=tests.sqltest --FAKE_RUN=false
 # -----------------------------------------------------------------------------
 
 FAKE_RUN=false  # Default value
@@ -21,17 +21,27 @@ set +e
 # --- Argument parsing ---
 for ARG in "$@"; do
   case $ARG in
-    --CLONE_SCHEMA=*) CLONE_SCHEMA="${ARG#*=}" ;;
-    --CLONE_DATABASE=*) CLONE_DATABASE="${ARG#*=}" ;;
-    --RELEASE_NUM=*) RELEASE_NUM="${ARG#*=}" ;;
-    --CONNECTION_NAME=*) CONNECTION_NAME="${ARG#*=}" ;;
-    --TEST_FILE=*) TEST_FILE="${ARG#*=}" ;;
-    --FAKE_RUN=*) FAKE_RUN="${ARG#*=}" ;;
-    *) echo "❌ Unknown argument: $ARG"; exit 1 ;;
+    --CLONE_DATABASE=*)
+      CLONE_DATABASE="${ARG#*=}" ;;
+    --CLONE_SCHEMA=*)
+      CLONE_SCHEMA="${ARG#*=}" ;;
+    --RELEASE_NUM=*)
+      RELEASE_NUM="${ARG#*=}" ;;
+    --CONNECTION_NAME=*)
+      CONNECTION_NAME="${ARG#*=}" ;;
+    --TEST_FILE=*)
+      TEST_FILE="${ARG#*=}" ;;
+    --FAKE_RUN=*)
+      FAKE_RUN="${ARG#*=}" ;;
+    *)
+      echo "❌ Unknown argument: $ARG"
+      echo "Usage: $0 --CLONE_DATABASE=... --CLONE_SCHEMA=... --RELEASE_NUM=... --CONNECTION_NAME=... --TEST_FILE=... --FAKE_RUN=..."
+      exit 1
+      ;;
   esac
 done
 
-echo "ℹ️ FAKE_RUN is set to: $FAKE_RUN"
+echo "FAKE_RUN is set to: $FAKE_RUN"
 
 # --- Validation ---
 if [[ -z "$CLONE_SCHEMA" || -z "$CLONE_DATABASE" || -z "$RELEASE_NUM" || -z "$CONNECTION_NAME" || -z "$TEST_FILE" ]]; then
@@ -51,17 +61,17 @@ echo "TESTSUITE_NAME: $TESTSUITE_NAME"
 
 # --- Runtime detection ---
 if [[ -f /.dockerenv ]] || grep -qE '/docker/|/lxc/' /proc/1/cgroup 2>/dev/null; then
-  echo "🛠 Running inside Docker container"
+  echo "Running inside Docker container"
   REPORT_DIR="/home/docker/sql-report-vol"
   RUNTIME="container"
   JUNIT_REPORT_DIR="/home/docker/sql-unit-reports"
 elif [[ "$(uname)" == "Darwin" ]]; then
- echo "🍏 Running on macOS"
+ echo "Running on macOS"
   RUNTIME="macos"
   REPORT_DIR="$(pwd)/sql-report-vol"
   JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
 else
-  echo "🔧 Unknown system, defaulting to current dir"
+  echo "Unknown system, defaulting to current dir"
   RUNTIME="unknown"
   REPORT_DIR="$(pwd)/sql-report-vol"
   JUNIT_REPORT_DIR="$(pwd)/sql-unit-reports"
@@ -241,7 +251,7 @@ fi
 # --- Generate Unit History Report with  unitth.jar if available ---
 mkdir -p "$REPORT_DIR"
 
-echo "🚀 Running unitth.jar ..."
+echo "Running unitth.jar ..."
 echo "REPORT_DIR: $REPORT_DIR"
 echo "JUNIT_REPORT_DIR: $JUNIT_REPORT_DIR"
 echo "Executing: java -Dunitth.report.dir=\"$REPORT_DIR\" -Dunitth.html.report.path=\"$REPORT_DIR\" -jar unitth.jar $JUNIT_REPORT_DIR/*"
@@ -250,9 +260,3 @@ cd /usr/local/bin && java -Dunitth.report.dir="$REPORT_DIR" -jar unitth.jar "$JU
 
 # --- Exit with correct status ---
 [[ "$FAILED_TESTS" -eq 0 ]] && exit 0 || exit 1
-
-
-#java -Dunitth.report.dir="$REPORT_DIR" -Dunitth.html.report.path="$REPORT_DIR" -jar unitth.jar "$JUNIT_REPORT_DIR"/*
-#java -Dunitth.report.dir=/home/docker/sql-report-vol -jar unitth.jar /home/docker/sql-unit-reports/*
-
-#cd /usr/local/bin && java -Dunitth.report.dir="/home/docker/sql-report-vol" -Dunitth.html.report.path="/home/docker/sql-report-vol" -jar unitth.jar /home/docker/sql-unit-reports/*

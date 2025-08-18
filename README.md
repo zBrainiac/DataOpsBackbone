@@ -83,7 +83,11 @@ Within each domain (database), schemas are strategically utilized to achieve two
 ![DataOps_SF_object_structure.png](images/DataOps_SF_object_structure.png)
 
 
-### The rules: to drive modularization
+### Drive modularization for better Resilience
+
+We not only use static source code analysis to review new code coming into the environment, but also check the existing setup and enforce isolation more effectively.
+By isolating domains and versions, the impact of changes or failures in one area on others is minimised, thereby enhancing overall system stability and aiding regression testing.
+
 ![DataOps_SF_dep_rules.png](images/DataOps_SF_dep_rules.png)
 ---
 ## SQL Linting Rules and Regex Patterns
@@ -182,9 +186,9 @@ Create a snow cli config `~/.snowflake/config.toml`
 ```toml
 [connections.sfseeurope-svc_cicd_user]
 account = "sfseeurope-demo_mdaeppen"
-user = "SVC_CICD_USER"
-database = "MD_TEST"
-schema = "IOT"
+user = "SVC_CICD"
+database = "DATAOPS"
+schema = "IOT_RAW_v001"
 warehouse = "MD_TEST_WH"
 authenticator = "snowflake"
 password = "<your token>"
@@ -205,12 +209,11 @@ SONAR_JDBC_USERNAME=<...>
 SONAR_JDBC_PASSWORD=<...>
 
 # Snowflake
-CONNECTION_NAME=sfseeurope-svc_cicd_user
+CONNECTION_NAME=sfseeurope-svc_cicd
 ```
 
 ---
-
-### Step 2: Encode & Upload Secrets
+### Step 3: Encode & Upload Secrets
 
 ```bash
 base64 -b 0 -i ~/.snowflake/config.toml | tr -d '\n' > SNOW_CONFIG_B64
@@ -222,7 +225,7 @@ Upload the following secrets to GitHub repo:
 - `SONAR_TOKEN` (see below step 3.)
 
 ---
-### Step 3: Generate a SONAR_TOKEN (for user `ci_user`)
+### Step 4: Generate a SONAR_TOKEN (for user `ci_user`)
 
 1. Start your local stack via `./start.sh`
 2. Log in to SonarQube [http://localhost:9000](http://localhost:9000) as `admin`
@@ -236,7 +239,7 @@ Upload the following secrets to GitHub repo:
 
 ---
 
-### Step 4: Run It
+### Step 5: Run It
 
 1. Start your local stack via `./start.sh`
 2. Access SonarQube at: [http://localhost:9000](http://localhost:9000)  

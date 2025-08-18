@@ -3,17 +3,16 @@
 # github-workflow-verification_v1.sh
 # shasum -a 256 .github/workflows/update-local-repo.yml
 # Validates the SHA256 hash of the update-local-repo.yml GitHub Actions workflow file
-# f55430890c2b41ee279961be02fe64462032f961e362950e185a21ec63e0f263  update-local-repo.yml
 
 # --- Runtime detection ---
 if [[ -f /.dockerenv ]] || grep -qE '/docker/|/lxc/' /proc/1/cgroup 2>/dev/null; then
-  echo "🛠 Running inside Docker container"
+  echo "Running inside Docker container"
   WORKFLOW_FILE="/home/docker/actions-runner/_work/$PROJECT_KEY/$PROJECT_KEY/.github/workflows/update-local-repo.yml"
 elif [[ "$(uname)" == "Darwin" ]]; then
- echo "🍏 Running on macOS"
+ echo "Running on macOS"
   WORKFLOW_FILE="$USER/workspace/mother-of-all-Projects/.github/workflows/.github/workflows/update-local-repo.yml"
 else
-  echo "🔧 Unknown system, defaulting to current dir"
+  echo "Unknown system, defaulting to current dir"
   WORKFLOW_FILE="$USER/workspace/mother-of-all-Projects/.github/workflows/.github/workflows/update-local-repo.yml"
 fi
 
@@ -30,7 +29,7 @@ fi
 
 ACTUAL_HASH=$(sha256sum "$WORKFLOW_FILE" | awk '{print $1}')
 
-echo "🔍 Verifying workflow integrity..."
+echo "Verifying workflow integrity..."
 echo "→ Expected SHA256: $EXPECTED_HASH"
 echo "→ Actual   SHA256: $ACTUAL_HASH"
 

@@ -3,12 +3,12 @@
 # -----------------------------------------------------------------------------
 # Usage:
 # ./snowflake-drop-clone-db_v2.sh \
-#   --CLONE_DATABASE=MD_TEST \
+#   --CLONE_DATABASE=DataOps \
 #   --CLONE_SCHEMA=IOT_CLONE \
 #   --RELEASE_NUM=42 \
 #   --CONNECTION_NAME=ci_user_test
 #
-# ./snowflake-drop-clone-db_v2.sh --CLONE_DATABASE=MD_TEST --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user
+# ./snowflake-drop-clone-db_v2.sh --CLONE_DATABASE=DataOps --CLONE_SCHEMA=IOT_CLONE --RELEASE_NUM=42 --CONNECTION_NAME=sfseeurope-svc_cicd_user
 # -----------------------------------------------------------------------------
 
 set -e
@@ -46,8 +46,8 @@ fi
 CLONE_SCHEMA_WITH_RELEASE="${CLONE_SCHEMA}_${RELEASE_NUM}"
 
 # --- Execution ---
-echo "🔗 Connecting to Snowflake and starting the DROP process..."
-echo "📋 Executing: DROP SCHEMA IF EXISTS $CLONE_DATABASE.$CLONE_SCHEMA_WITH_RELEASE using connection: $CONNECTION_NAME"
+echo "Connecting to Snowflake and starting the DROP process..."
+echo "Executing: DROP SCHEMA IF EXISTS $CLONE_DATABASE.$CLONE_SCHEMA_WITH_RELEASE using connection: $CONNECTION_NAME"
 
 set +e
 snow sql -c "$CONNECTION_NAME" -q "

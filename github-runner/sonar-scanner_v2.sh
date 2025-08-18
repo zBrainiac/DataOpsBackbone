@@ -31,7 +31,7 @@ else
 fi
 
 # Run sonar-scanner
-echo "🚀 Running sonar-scanner..."
+echo "Running sonar-scanner..."
 "$SONAR_SCANNER" \
   -Dsonar.projectKey="$PROJECT_KEY" \
   -Dsonar.projectBaseDir="/home/docker/actions-runner/_work/$PROJECT_KEY/$PROJECT_KEY" \

@@ -5,7 +5,7 @@
 # -----------------------------------------------------------------------------
 # Usage:
 # ./snowflake-extract-dependencies_v1.sh \
-#   --SOURCE_SOURCE_DATABASE=MD_TEST \
+#   --SOURCE_DATABASE=DataOps \
 #   --SOURCE_SCHEMA=IOT_CLONE_42 \
 #   [--OUTPUT_DIR=/home/docker/actions-runner/_work/my_project/my_project] \
 #   --CONNECTION_NAME=ci_user_test
@@ -22,12 +22,17 @@ OUTPUT_FILE_NAME="output_dependencies.csv"
 # Parse arguments
 for ARG in "$@"; do
   case $ARG in
-    --SOURCE_DATABASE=*) SOURCE_DATABASE="${ARG#*=}" ;;
-    --SOURCE_SCHEMA=*) SOURCE_SCHEMA="${ARG#*=}" ;;
-    --OUTPUT_DIR=*) OUTPUT_DIR="${ARG#*=}" ;;
-    --CONNECTION_NAME=*) CONNECTION_NAME="${ARG#*=}" ;;
+    --SOURCE_DATABASE=*)
+      SOURCE_DATABASE="${ARG#*=}" ;;
+    --SOURCE_SCHEMA=*)
+      SOURCE_SCHEMA="${ARG#*=}" ;;
+    --OUTPUT_DIR=*)
+      OUTPUT_DIR="${ARG#*=}" ;;
+    --CONNECTION_NAME=*)
+      CONNECTION_NAME="${ARG#*=}" ;;
     *)
       echo "❌ Unknown argument: $ARG"
+      echo "Usage: $0 --SOURCE_DATABASE=... --SOURCE_SCHEMA=... --OUTPUT_DIR=... --CONNECTION_NAME=..."
       exit 1
       ;;
   esac
@@ -50,7 +55,7 @@ if [[ -z "$OUTPUT_DIR" ]]; then
 fi
 
 FINAL_OUTPUT_DIR="${OUTPUT_DIR}/dependencies"
-FINAL_OUTPUT_FILE="${FINAL_OUTPUT_DIR}/${OUTPUT_FILE_NAME}"
+
 
 # Ensure output directory exists
 mkdir -p "$FINAL_OUTPUT_DIR"
@@ -58,9 +63,10 @@ mkdir -p "$FINAL_OUTPUT_DIR"
 echo "Extracting dependencies for schema: $SOURCE_DATABASE.$SOURCE_SCHEMA"
 echo "Using connection: $CONNECTION_NAME"
 echo "Output directory: $FINAL_OUTPUT_DIR"
-echo "Output file: $FINAL_OUTPUT_FILE"
+echo "Output file: $FINAL_OUTPUT_FILE_DEPENDENCIES"
 
 # Run the dependency extraction SQL
+echo "Extracting dependencies..."
 snow sql -c "$CONNECTION_NAME" --format=csv -q "
 SELECT
     dep_obj.REFERENCED_DATABASE AS base_database,
@@ -89,11 +95,18 @@ SELECT
         ELSE 'cross_schema_ref_false'
     END AS cross_schema_ref
   FROM SNOWFLAKE.ACCOUNT_USAGE.OBJECT_DEPENDENCIES dep_obj
-   WHERE dep_obj.referenced_database = '$SOURCE_DATABASE';" > "$FINAL_OUTPUT_FILE"
+   WHERE dep_obj.referenced_database = '$SOURCE_DATABASE';" > "$FINAL_OUTPUT_DIR/deps.csv"
 
 if [ $? -eq 0 ]; then
-  echo "✅ Dependencies written to $FINAL_OUTPUT_FILE"
+  echo "✅ Dependencies written to $FINAL_OUTPUT_DIR/deps.csv"
 else
-  echo "❌ Error writing output to $FINAL_OUTPUT_FILE"
+  echo "❌ Error writing output to $FINAL_OUTPUT_DIR/deps.csv"
   exit 1
 fi
+
+
+echo "Extracting DDL..."
+snow sql -c $CONNECTION_NAME -q "
+SELECT GET_DDL('DATABASE','$SOURCE_DATABASE')" --format=csv | tail -n +2 | tr -d '"' > $FINAL_OUTPUT_DIR/ddl.sql
+
+echo "Done: $FINAL_OUTPUT_DIR/deps.csv + $FINAL_OUTPUT_DIR/ddl.sql"

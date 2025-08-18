@@ -5,7 +5,7 @@
 # Usage:
 # ./snowflake-deploy-structure_v2.sh \
 #   --PROJECT_KEY=mother-of-all-Projects \
-#   --CLONE_DATABASE=MD_TEST \
+#   --CLONE_DATABASE=DataOps \
 #   --CLONE_SCHEMA=IOT_CLONE \
 #   --RELEASE_NUM=50 \
 #   --CONNECTION_NAME=ci_user
@@ -64,23 +64,23 @@ if [[ ! -d "$SQL_DIR" ]]; then
   exit 1
 fi
 
-echo "📂 Scanning for SQL files in: $SQL_DIR"
-echo "📌 Using PROJECT_KEY: $PROJECT_KEY"
-echo "📌 CLONE_DATABASE: $CLONE_DATABASE"
-echo "📌 CLONE_SCHEMA_WITH_RELEASE: $CLONE_SCHEMA_WITH_RELEASE"
+echo "Scanning for SQL files in: $SQL_DIR"
+echo "Using PROJECT_KEY: $PROJECT_KEY"
+echo "CLONE_DATABASE: $CLONE_DATABASE"
+echo "CLONE_SCHEMA_WITH_RELEASE: $CLONE_SCHEMA_WITH_RELEASE"
 echo ""
 
 # --- Find and sort SQL files ---
 SQL_FILES=$(find "$SQL_DIR" -type f -name "*.sql" | sort)
 
 if [[ -z "$SQL_FILES" ]]; then
-  echo "⚠️ No SQL files found in $SQL_DIR"
+  echo "No SQL files found in $SQL_DIR"
   exit 0
 fi
 
 # --- Execute each SQL file with USE statements prepended ---
 for FILE in $SQL_FILES; do
-  echo "📄 Executing: $FILE"
+  echo "Executing: $FILE"
 
   TMP_FILE=$(mktemp)
   {
@@ -112,4 +112,4 @@ for FILE in $SQL_FILES; do
   echo ""
 done
 
-echo "🎉 All SQL scripts executed successfully!"
+echo "All SQL scripts executed successfully!"
