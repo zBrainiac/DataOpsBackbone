@@ -74,7 +74,7 @@ jobs:
           echo "Schema: $SOURCE_SCHEMA"
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
@@ -116,7 +116,7 @@ jobs:
 
       - name: Wait for Quality Gate to complete
         continue-on-error: ${{ !inputs.QUALITY_GATE_ENFORCED }}
-        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
+        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
         with:
           scanMetadataReportFile: '.scannerwork/report-task.txt'
 
@@ -171,7 +171,7 @@ jobs:
           zip -r release.zip . -x '*.git*' '*.scannerwork*' 'out/*'
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.run_number }}
           tag_name: v${{ github.run_number }}

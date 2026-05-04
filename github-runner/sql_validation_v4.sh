@@ -188,14 +188,6 @@ fi
 # --- Run actual tests from file ---
 while IFS='|' read -r description sql expected; do
   if [[ -z "$description" || "$description" =~ ^# ]]; then
-    ((SKIP_COUNT++))
-    ((TOTAL_TESTS++))
-    trimmed_desc="$(echo "${description:-Unnamed Skipped Test}" | xargs)"
-    TESTS_JSON=$(echo "$TESTS_JSON" | jq \
-      --arg name "$trimmed_desc" \
-      --arg status "skipped" \
-      --arg suite "SQLValidation" \
-      '. += [{"name": $name, "status": $status, "duration": 0, "message": "", "suite": $suite}]')
     continue
   fi
   echo "Processing: desc='$description', sql='$sql', expected='$expected'"

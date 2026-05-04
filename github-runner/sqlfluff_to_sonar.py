@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""Convert SQLFluff JSON output to SonarQube Generic Issue format."""
+"""Convert SQLFluff JSON output to SonarQube Generic Issue format (v2)."""
 import json
 import sys
 
 SKIP_RULES = {'PRS', 'CP01'}
 SKIP_PATHS = {'sources/definitions/', '/out/', '/.scannerwork/'}
 
-SEVERITY_MAP = {
-    'LT01': 'INFO', 'LT02': 'INFO', 'LT06': 'INFO',
-    'LT08': 'INFO', 'LT09': 'INFO', 'LT10': 'INFO',
-    'LT12': 'INFO', 'LT14': 'INFO',
-    'CP02': 'MINOR', 'CP04': 'MINOR',
-    'AL01': 'MINOR', 'AL02': 'MINOR', 'AL08': 'MINOR',
-    'AM01': 'MINOR', 'AM03': 'MINOR', 'AM04': 'MINOR',
-    'AM05': 'MAJOR', 'AM09': 'MINOR',
-    'RF02': 'MINOR', 'RF03': 'MINOR', 'RF04': 'MAJOR',
-    'ST06': 'MINOR', 'ST07': 'MINOR', 'ST09': 'MINOR',
+IMPACT_MAP = {
+    'LT01': 'LOW', 'LT02': 'LOW', 'LT06': 'LOW',
+    'LT08': 'LOW', 'LT09': 'LOW', 'LT10': 'LOW',
+    'LT12': 'LOW', 'LT14': 'LOW',
+    'CP02': 'LOW', 'CP04': 'LOW',
+    'AL01': 'LOW', 'AL02': 'LOW', 'AL08': 'LOW',
+    'AM01': 'LOW', 'AM03': 'LOW', 'AM04': 'MEDIUM',
+    'AM05': 'MEDIUM', 'AM09': 'LOW',
+    'RF02': 'LOW', 'RF03': 'LOW', 'RF04': 'MEDIUM',
+    'ST06': 'LOW', 'ST07': 'LOW', 'ST09': 'LOW',
+    'CV06': 'LOW',
 }
 
 with open(sys.argv[1]) as f:
     data = json.load(f)
 
 issues = []
+rules_seen = set()
 for file_result in data:
     filepath = file_result.get('filepath', '')
     if any(s in filepath for s in SKIP_PATHS):
@@ -30,11 +32,12 @@ for file_result in data:
         code = v.get('code', '')
         if code in SKIP_RULES:
             continue
+        rules_seen.add(code)
+        severity = IMPACT_MAP.get(code, 'LOW')
         issues.append({
             'engineId': 'sqlfluff',
             'ruleId': code,
-            'severity': SEVERITY_MAP.get(code, 'MINOR'),
-            'type': 'CODE_SMELL',
+            'impacts': [{'softwareQuality': 'MAINTAINABILITY', 'severity': severity}],
             'primaryLocation': {
                 'message': v.get('description', ''),
                 'filePath': filepath,
@@ -42,7 +45,9 @@ for file_result in data:
             }
         })
 
+rules = [{'id': r, 'name': r, 'engineId': 'sqlfluff'} for r in sorted(rules_seen)]
+
 with open(sys.argv[2], 'w') as f:
-    json.dump({'issues': issues}, f, indent=2)
+    json.dump({'rules': rules, 'issues': issues}, f, indent=2)
 
 print(f'SQLFluff: {len(issues)} issues written to {sys.argv[2]}')
