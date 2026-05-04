@@ -19,11 +19,13 @@ IMPACT_MAP = {
     'CV06': 'LOW',
 }
 
+RULE_DESCRIPTIONS = {}
+
 with open(sys.argv[1]) as f:
     data = json.load(f)
 
 issues = []
-rules_seen = set()
+rules_seen = {}
 for file_result in data:
     filepath = file_result.get('filepath', '')
     if any(s in filepath for s in SKIP_PATHS):
@@ -32,20 +34,29 @@ for file_result in data:
         code = v.get('code', '')
         if code in SKIP_RULES:
             continue
-        rules_seen.add(code)
-        severity = IMPACT_MAP.get(code, 'LOW')
+        desc = v.get('description', '')
+        if code not in rules_seen:
+            rules_seen[code] = desc
         issues.append({
-            'engineId': 'sqlfluff',
             'ruleId': code,
-            'impacts': [{'softwareQuality': 'MAINTAINABILITY', 'severity': severity}],
             'primaryLocation': {
-                'message': v.get('description', ''),
+                'message': desc,
                 'filePath': filepath,
                 'textRange': {'startLine': v.get('start_line_no', 1)}
             }
         })
 
-rules = [{'id': r, 'name': r, 'engineId': 'sqlfluff'} for r in sorted(rules_seen)]
+rules = []
+for code in sorted(rules_seen.keys()):
+    severity = IMPACT_MAP.get(code, 'LOW')
+    rules.append({
+        'id': code,
+        'name': code,
+        'description': rules_seen[code] or f'SQLFluff rule {code}',
+        'engineId': 'sqlfluff',
+        'cleanCodeAttribute': 'FORMATTED',
+        'impacts': [{'softwareQuality': 'MAINTAINABILITY', 'severity': severity}]
+    })
 
 with open(sys.argv[2], 'w') as f:
     json.dump({'rules': rules, 'issues': issues}, f, indent=2)
