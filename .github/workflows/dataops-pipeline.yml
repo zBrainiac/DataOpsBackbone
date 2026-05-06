@@ -128,14 +128,25 @@ jobs:
         if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
           DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
-          bash /usr/local/bin/snowflake-clone-schema_v3.sh \
-            --SOURCE_DATABASE=$SOURCE_DATABASE \
-            --SOURCE_SCHEMA=$SOURCE_SCHEMA \
-            --RELEASE_NUM=$RELEASE_NUM \
-            --PROJECT_KEY=$DCM_PROJECT_NAME \
-            --CONNECTION_NAME=$CONNECTION_NAME
-          echo "CLONE_SCHEMA=${SOURCE_SCHEMA}_${RELEASE_NUM}" >> $GITHUB_ENV
-          echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${SOURCE_SCHEMA}_${RELEASE_NUM}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
+          CLONE_SCHEMA="${SOURCE_SCHEMA}_${RELEASE_NUM}"
+          snow sql -q "CREATE OR REPLACE SCHEMA ${SOURCE_DATABASE}.${CLONE_SCHEMA};" -c $CONNECTION_NAME
+          snow sql -q "CREATE DCM PROJECT IF NOT EXISTS ${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME};" -c $CONNECTION_NAME
+          cp manifest.yml manifest.yml.bak
+          python3 -c "
+          import yaml
+          with open('manifest.yml') as f:
+              m = yaml.safe_load(f)
+          m['targets']['$DCM_TARGET']['project_name'] = '${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}'
+          t = m.get('templating', {})
+          t.setdefault('defaults', {})['schema'] = '${CLONE_SCHEMA}'
+          cfg = t.get('configurations', {}).get('$DCM_TARGET', {})
+          if cfg:
+              cfg['schema'] = '${CLONE_SCHEMA}'
+          with open('manifest.yml', 'w') as f:
+              yaml.dump(m, f, default_flow_style=False)
+          "
+          echo "CLONE_SCHEMA=${CLONE_SCHEMA}" >> $GITHUB_ENV
+          echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
         run: |
@@ -187,6 +198,9 @@ jobs:
       - name: Drop clone schema
         if: ${{ always() && inputs.CLONE_PER_BUILD }}
         run: |
+          if [[ -f manifest.yml.bak ]]; then
+            mv manifest.yml.bak manifest.yml
+          fi
           bash /usr/local/bin/snowflake-drop-clone-schema_v3.sh \
             --SOURCE_DATABASE=$SOURCE_DATABASE \
             --SOURCE_SCHEMA=$SOURCE_SCHEMA \
