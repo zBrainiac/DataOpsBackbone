@@ -145,6 +145,9 @@ jobs:
           with open('manifest.yml', 'w') as f:
               yaml.dump(m, f, default_flow_style=False)
           "
+          if [[ -f sources/definitions/infrastructure.sql ]]; then
+            sed -i '/^DEFINE WAREHOUSE/,/;$/d' sources/definitions/infrastructure.sql
+          fi
           echo "CLONE_SCHEMA=${CLONE_SCHEMA}" >> $GITHUB_ENV
           echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
@@ -201,6 +204,7 @@ jobs:
           if [[ -f manifest.yml.bak ]]; then
             mv manifest.yml.bak manifest.yml
           fi
+          git checkout -- sources/ 2>/dev/null || true
           bash /usr/local/bin/snowflake-drop-clone-schema_v3.sh \
             --SOURCE_DATABASE=$SOURCE_DATABASE \
             --SOURCE_SCHEMA=$SOURCE_SCHEMA \
