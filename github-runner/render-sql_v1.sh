@@ -1,4 +1,20 @@
 #!/bin/bash
+# -----------------------------------------------------------------------------
+# Render and execute SQL files with Jinja-style templating
+# -----------------------------------------------------------------------------
+# Resolves {{ var }} placeholders from manifest.yml (templating section)
+# using the target environment configuration (DEV, TE1, PRD, etc.)
+#
+# Modes:
+#   Execute:     Renders variables and runs SQL via `snow sql` CLI
+#   Render-only: Renders variables and writes output file (no execution)
+#
+# Usage:
+#   render-sql_v1.sh --FILE=pre_deploy.sql --TARGET=DEV --CONNECTION_NAME=myconn
+#   render-sql_v1.sh --FILE=tests.sqltest --TARGET=DEV --MANIFEST=manifest.yml --RENDER_ONLY=tests.rendered.sqltest
+#
+# Skips gracefully if the SQL file does not exist (exit 0).
+# -----------------------------------------------------------------------------
 set -e
 
 for ARG in "$@"; do

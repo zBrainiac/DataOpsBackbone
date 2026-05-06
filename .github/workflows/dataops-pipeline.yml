@@ -41,6 +41,10 @@ on:
         type: boolean
         default: false
         description: 'Fail pipeline on Quality Gate failure'
+      CLONE_PER_BUILD:
+        type: boolean
+        default: false
+        description: 'Clone schema per build for isolated regression testing'
     secrets:
       SNOW_CONFIG_B64:
         required: true
@@ -90,7 +94,7 @@ jobs:
             cat "$HOME/.sonar_env" >> $GITHUB_ENV
           fi
 
-      - name: Run pre_deploy.sql
+      - name: Render and execute pre_deploy.sql
         run: |
           bash /usr/local/bin/render-sql_v1.sh \
             --FILE=pre_deploy.sql \
@@ -120,6 +124,18 @@ jobs:
         with:
           scanMetadataReportFile: '.scannerwork/report-task.txt'
 
+      - name: Clone schema for build
+        if: ${{ inputs.CLONE_PER_BUILD }}
+        run: |
+          bash /usr/local/bin/snowflake-clone-schema_v3.sh \
+            --SOURCE_DATABASE=$SOURCE_DATABASE \
+            --SOURCE_SCHEMA=$SOURCE_SCHEMA \
+            --RELEASE_NUM=$RELEASE_NUM \
+            --PROJECT_KEY=$PROJECT_KEY \
+            --CONNECTION_NAME=$CONNECTION_NAME
+          echo "CLONE_SCHEMA=${SOURCE_SCHEMA}_${RELEASE_NUM}" >> $GITHUB_ENV
+          echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${SOURCE_SCHEMA}_${RELEASE_NUM}.${PROJECT_KEY}" >> $GITHUB_ENV
+
       - name: DCM Analyze + Plan + Deploy
         run: |
           bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
@@ -129,7 +145,7 @@ jobs:
             --ALIAS="release-${RELEASE_NUM}-${GITHUB_RUN_ATTEMPT}" \
             --PROJECT_DIR="$(pwd)"
 
-      - name: Run post_deploy.sql
+      - name: Render and execute post_deploy.sql
         run: |
           bash /usr/local/bin/render-sql_v1.sh \
             --FILE=post_deploy.sql \
@@ -160,11 +176,21 @@ jobs:
           else
             TEST_FILE="$(pwd)/sqlunit/tests.sqltest"
           fi
+          TEST_SCHEMA="${CLONE_SCHEMA:-$SOURCE_SCHEMA}"
           bash /usr/local/bin/sql_validation_v4.sh \
             --CLONE_DATABASE=$SOURCE_DATABASE \
-            --CLONE_SCHEMA=$SOURCE_SCHEMA \
+            --CLONE_SCHEMA=$TEST_SCHEMA \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TEST_FILE="$TEST_FILE"
+
+      - name: Drop clone schema
+        if: ${{ always() && inputs.CLONE_PER_BUILD }}
+        run: |
+          bash /usr/local/bin/snowflake-drop-clone-schema_v3.sh \
+            --SOURCE_DATABASE=$SOURCE_DATABASE \
+            --SOURCE_SCHEMA=$SOURCE_SCHEMA \
+            --RELEASE_NUM=$RELEASE_NUM \
+            --CONNECTION_NAME=$CONNECTION_NAME
 
       - name: Zip source files
         run: |
