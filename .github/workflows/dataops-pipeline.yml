@@ -127,14 +127,15 @@ jobs:
       - name: Clone schema for build
         if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
+          DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
           bash /usr/local/bin/snowflake-clone-schema_v3.sh \
             --SOURCE_DATABASE=$SOURCE_DATABASE \
             --SOURCE_SCHEMA=$SOURCE_SCHEMA \
             --RELEASE_NUM=$RELEASE_NUM \
-            --PROJECT_KEY=$PROJECT_KEY \
+            --PROJECT_KEY=$DCM_PROJECT_NAME \
             --CONNECTION_NAME=$CONNECTION_NAME
           echo "CLONE_SCHEMA=${SOURCE_SCHEMA}_${RELEASE_NUM}" >> $GITHUB_ENV
-          echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${SOURCE_SCHEMA}_${RELEASE_NUM}.${PROJECT_KEY}" >> $GITHUB_ENV
+          echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${SOURCE_SCHEMA}_${RELEASE_NUM}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
         run: |
