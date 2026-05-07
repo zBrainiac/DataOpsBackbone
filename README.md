@@ -81,14 +81,15 @@ jobs:
 8. **GitHub Release** — zip + tag
 
 ### Consumer Repos:
-| Repo | Database | Schema |
-|------|----------|--------|
-| [mother-of-all-Projects](https://github.com/zbrainiac-labs/mother-of-all-Projects) | DATAOPS | IOT_RAW_V001 |
-| [project-one](https://github.com/zbrainiac-labs/project-one) | ONE_DEV | ONE_RAW_V001 |
-| [MasterDataManagement](https://github.com/zbrainiac-labs/MasterDataManagement) | MASTER_DATA_MANAGEMENT | CRM_AGG_001 |
-| [crm_dcm_project](https://github.com/zbrainiac-labs/crm_dcm_project) | CRM_DEV | PUBLIC |
-| [AAA_synthetic_bank](https://github.com/zbrainiac-labs/AAA_synthetic_bank) | AAA_DEV_SYNTHETIC_BANK | PUBLIC |
-| [sharing_any_objects](https://github.com/zbrainiac-labs/sharing_any_objects) | ECO_DEV | ECOS_RAW_V001 |
+| Repo | Database | DCM Schema | Data Schemas | Clone per Build |
+|------|----------|------------|--------------|:---:|
+| [mother-of-all-Projects](https://github.com/zbrainiac-labs/mother-of-all-Projects) | OPS_DEV | OPS_DCM | OPS_RAW_v001 | ✅ |
+| [project-one](https://github.com/zbrainiac-labs/project-one) | ONE_DEV | ONE_DCM | ONE_RAW_v001 | ✅ |
+| [MasterDataManagement](https://github.com/zbrainiac-labs/MasterDataManagement) | MDM_DEV | MDM_DCM | MDM_RAW_v001, MDM_AGG_v001, MDM_SRV_v001 | |
+| [crm_dcm_project](https://github.com/zbrainiac-labs/crm_dcm_project) | CRM_DEV | CRM_DCM | CRM_RAW_v001, CRM_CUR_v001 | |
+| [SyntheticRetailBank](https://github.com/zbrainiac-labs/SyntheticRetailBank) | AAA_DEV_SYNTHETIC_BANK | AAA_DCM | CRM_RAW_v001, PAY_RAW_v001, ... | |
+| [sharing_any_objects](https://github.com/zbrainiac-labs/sharing_any_objects) | ECO_DEV | ECO_DCM | ECO_RAW_v001 | ✅ |
+| [crew-asset-management](https://github.com/zbrainiac-labs/crew-asset-management) | SAM_DEMO | SAM_DCM | SAM_RAW_v001 | |
 
 ---
 
@@ -169,7 +170,7 @@ All Snowflake object names use **UPPERCASE** with underscore separators.
 
 Examples: `CLR_DEV`, `PAY_PRD`, `IOT_TE1`
 
-### Schema: `{DOMAIN}_{MATURITY}_v{NNN}`
+### Schema: `{DOMAIN}_{MATURITY}_v{NNN}` or `{DOMAIN}_DCM`
 
 | Position | Field | Values |
 |----------|-------|--------|
@@ -177,7 +178,9 @@ Examples: `CLR_DEV`, `PAY_PRD`, `IOT_TE1`
 | 4-8 | Maturity | `_RAW_`, `_CUR_`, `_AGG_`, `_GOL_` |
 | 9-12 | Version | `v001` -- `v999` |
 
-Examples: `CLR_RAW_v001`, `IOT_AGG_v012`, `REF_CUR_v003`
+DCM schemas use `{DOMAIN}_DCM` (unversioned) — one per database, holds the DCM project definition.
+
+Examples: `CRM_RAW_v001`, `IOT_AGG_v012`, `REF_CUR_v003`, `OPS_DCM`, `CRM_DCM`
 
 ### Database Objects (tables, views, stages, tasks, etc.): `{DOMAIN}{COMP}_{MATURITY}_{TYPE}_{TEXT}`
 

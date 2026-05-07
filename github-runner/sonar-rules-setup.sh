@@ -77,8 +77,8 @@ create_rule "Dynamic_Table_must_have_TARGET_LAG" "Dynamic Tables must specify TA
 
 echo ""
 echo "=== Naming Convention - Schema ==="
-create_rule "Schema_must_have_maturity_prefix" "Schema names must follow DOMAIN_MATURITY_ prefix" "Schema must start with RAW_, CUR_, AGG_, GOL_, or REF_" '(?i)^(?!\s*--)\s*CREATE\s+(OR\s+REPLACE\s+)?SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?(?:[a-z0-9_]+\.)?(?!RAW_|CUR_|AGG_|GOL_|REF_)[a-z0-9_]+;' "MAJOR"
-create_rule "Schema_must_have_version_suffix" "Schema names must end with _vNNN version" "Schema must end with _v followed by exactly 3 digits." '(?i)^(?!\s*--)\s*CREATE\s+(OR\s+REPLACE\s+)?SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?(?:[a-z0-9_]+\.)?[a-z0-9_]+(?<!_v\d{3});' "MAJOR"
+create_rule "Schema_must_have_maturity_prefix" "Schema names must follow DOMAIN_MATURITY_ prefix" "Schema must contain _RAW_, _CUR_, _AGG_, _GOL_, _REF_ or end with _DCM" '(?i)^(?!\s*--)\s*CREATE\s+(OR\s+REPLACE\s+)?SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?(\S+\.)?(?!.*_(RAW|CUR|AGG|GOL|REF)_)(?!.*_DCM\s*;)[A-Z0-9_]+\s*;' "MAJOR"
+create_rule "Schema_must_have_version_suffix" "Schema names must end with _vNNN version" "Schema must end with _v followed by exactly 3 digits (or _DCM for DCM schemas)." '(?i)^(?!\s*--)\s*CREATE\s+(OR\s+REPLACE\s+)?SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?(\S+\.)?[A-Z0-9_]+(?<!_DCM)(?<!_v\d\d\d)\s*;' "MAJOR"
 
 echo ""
 echo "=== Naming Convention - Objects ==="
