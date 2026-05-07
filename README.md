@@ -84,7 +84,7 @@ jobs:
 | Repo | Database | Schema |
 |------|----------|--------|
 | [mother-of-all-Projects](https://github.com/zbrainiac-labs/mother-of-all-Projects) | DATAOPS | IOT_RAW_V001 |
-| [project-one](https://github.com/zbrainiac-labs/project-one) | PROJECT_DEV | ONE_RAW_V001 |
+| [project-one](https://github.com/zbrainiac-labs/project-one) | ONE_DEV | ONE_RAW_V001 |
 | [MasterDataManagement](https://github.com/zbrainiac-labs/MasterDataManagement) | MASTER_DATA_MANAGEMENT | CRM_AGG_001 |
 | [crm_dcm_project](https://github.com/zbrainiac-labs/crm_dcm_project) | CRM_DEV | PUBLIC |
 | [AAA_synthetic_bank](https://github.com/zbrainiac-labs/AAA_synthetic_bank) | AAA_DEV_SYNTHETIC_BANK | PUBLIC |

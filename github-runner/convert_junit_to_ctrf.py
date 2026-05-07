@@ -35,18 +35,27 @@ def convert_junit_xml_to_ctrf(xml_path: Path) -> dict:
 
     for suite in suites:
         suite_name = suite.get("name", "SQLValidation")
+        suite_time_str = suite.get("time", "0")
+        suite_timestamp = suite.get("timestamp", "")
+
         for tc in suite.findall("testcase"):
             total += 1
             name = tc.get("name", "Unnamed")
+            classname = tc.get("classname", "")
             time_sec = float(tc.get("time", "0"))
             duration_ms = int(time_sec * 1000) if time_sec > 0 else 1
 
             failure = tc.find("failure")
+            error = tc.find("error")
             skip = tc.find("skipped")
 
             if failure is not None:
                 status = "failed"
                 message = failure.get("message", failure.text or "")
+                failed += 1
+            elif error is not None:
+                status = "failed"
+                message = error.get("message", error.text or "")
                 failed += 1
             elif skip is not None:
                 status = "skipped"
@@ -57,16 +66,29 @@ def convert_junit_xml_to_ctrf(xml_path: Path) -> dict:
                 message = ""
                 passed += 1
 
-            tests.append({
+            stdout = tc.findtext("system-out", "").strip()
+            stderr = tc.findtext("system-err", "").strip()
+
+            test_entry = {
                 "name": name,
                 "status": status,
                 "duration": duration_ms,
-                "message": message,
                 "suite": suite_name
-            })
+            }
+            if classname:
+                test_entry["classname"] = classname
+            if message:
+                test_entry["message"] = message
+            if stdout:
+                test_entry["stdout"] = stdout
+            if stderr:
+                test_entry["stderr"] = stderr
+
+            tests.append(test_entry)
 
     total_time_str = suites[0].get("time", "0") if suites else "0"
     total_time_ms = int(float(total_time_str) * 1000)
+    timestamp = suites[0].get("timestamp", "") if suites else ""
 
     ctrf = {
         "reportFormat": "CTRF",
@@ -85,7 +107,8 @@ def convert_junit_xml_to_ctrf(xml_path: Path) -> dict:
             },
             "tests": tests,
             "environment": {
-                "projectName": suite_name
+                "projectName": suite_name,
+                "timestamp": timestamp
             }
         }
     }
