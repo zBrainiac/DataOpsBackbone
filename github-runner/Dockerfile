@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip zip curl openjdk-21-jre python3 python3-pip python3-dev \
     build-essential git jq ca-certificates libffi-dev libssl-dev file \
     dumb-init sudo && \
+    curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${TARGETARCH}" -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
