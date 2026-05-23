@@ -18,6 +18,11 @@
 
 name: DataOps Pipeline
 
+permissions:
+  contents: write
+  actions: read
+  checks: write
+
 on:
   workflow_call:
     inputs:
@@ -45,13 +50,22 @@ on:
         type: boolean
         default: false
         description: 'Clone schema per build for isolated regression testing'
+      SQLFLUFF_FAIL_THRESHOLD:
+        type: number
+        default: 0
+        description: 'Number of critical SQLFluff violations that will fail the build (0 = never fail)'
     secrets:
       SNOW_CONFIG_B64:
         required: true
 
+concurrency:
+  group: dataops-${{ github.ref }}-${{ inputs.SOURCE_DATABASE }}-${{ inputs.SOURCE_SCHEMA }}
+  cancel-in-progress: false
+
 jobs:
   update-and-scan:
     runs-on: self-hosted
+    timeout-minutes: 90
     env:
       PROJECT_KEY: ${{ github.event.repository.name }}
       RELEASE_NUM: ${{ github.run_number }}
@@ -63,13 +77,20 @@ jobs:
       DCM_TARGET: ${{ inputs.DCM_TARGET }}
       SNOW_CONFIG_B64: ${{ secrets.SNOW_CONFIG_B64 }}
 
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Set up dynamic base directories
         run: |
+          set -Eeuo pipefail
+          echo "PIPELINE_START=$(date +%s)" >> $GITHUB_ENV
           echo "BASE_DIR_PROJECT=$HOME/workspace/${PROJECT_KEY}" >> $GITHUB_ENV
 
       - name: Show repo info
         run: |
+          set -Eeuo pipefail
           echo "Project: $PROJECT_KEY"
           echo "Branch: $SONAR_BRANCH_NAME"
           echo "Release #: $RELEASE_NUM"
@@ -77,29 +98,39 @@ jobs:
           echo "Database: $SOURCE_DATABASE"
           echo "Schema: $SOURCE_SCHEMA"
 
+      - name: Validate inputs
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_DATABASE" =~ ^[A-Z0-9_]+$ ]] || { echo "::error::Invalid SOURCE_DATABASE: $SOURCE_DATABASE"; exit 1; }
+          [[ "$SOURCE_SCHEMA" =~ ^[A-Z0-9_]+$ ]] || { echo "::error::Invalid SOURCE_SCHEMA: $SOURCE_SCHEMA"; exit 1; }
+          [[ "$DCM_PROJECT_IDENTIFIER" =~ ^[A-Z0-9_.]+$ ]] || { echo "::error::Invalid DCM_PROJECT_IDENTIFIER: $DCM_PROJECT_IDENTIFIER"; exit 1; }
+
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0
 
-      - name: Pull latest changes
-        run: git pull
-
       - name: Set up github runner env
         run: |
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
           bash /usr/local/bin/github-runner_v1.sh
           CONNECTION_NAME=$(grep -oP '^\[connections\.\K[^\]]+' $HOME/.snowflake/config.toml | head -1)
           echo "CONNECTION_NAME=$CONNECTION_NAME" >> $GITHUB_ENV
           if [[ -f "$HOME/.sonar_env" ]]; then
-            cat "$HOME/.sonar_env" >> $GITHUB_ENV
+            grep '^SONAR_' "$HOME/.sonar_env" >> $GITHUB_ENV || true
           fi
+          echo "TIME_SETUP=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute pre_deploy.sql
         run: |
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
           bash /usr/local/bin/render-sql_v1.sh \
             --FILE=pre_deploy.sql \
             --TARGET=$DCM_TARGET \
             --CONNECTION_NAME=$CONNECTION_NAME
+          echo "TIME_PREDEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Extract dependencies
         continue-on-error: true
@@ -110,41 +141,50 @@ jobs:
             --CONNECTION_NAME=$CONNECTION_NAME
 
       - name: Run SQLFluff lint
-        continue-on-error: true
         run: |
-          bash /usr/local/bin/sqlfluff-to-sonar.sh "$(pwd)" "$(pwd)/sqlfluff_issues.json"
+          set -Eeuo pipefail
+          bash /usr/local/bin/sqlfluff-to-sonar.sh "$(pwd)" "$(pwd)/sqlfluff_issues.json" || true
+          THRESHOLD=${{ inputs.SQLFLUFF_FAIL_THRESHOLD }}
+          if [[ "$THRESHOLD" -gt 0 && -f "$(pwd)/sqlfluff_issues.json" ]]; then
+            VIOLATION_COUNT=$(python3 -c "import json; d=json.load(open('sqlfluff_issues.json')); print(len([i for i in d.get('issues',[]) if i.get('severity','') == 'CRITICAL']))" 2>/dev/null || echo 0)
+            echo "::notice::SQLFluff critical violations: $VIOLATION_COUNT (threshold: $THRESHOLD)"
+            if [[ "$VIOLATION_COUNT" -ge "$THRESHOLD" ]]; then
+              echo "::error::SQLFluff critical violations ($VIOLATION_COUNT) exceed threshold ($THRESHOLD)"
+              exit 1
+            fi
+          fi
 
       - name: Run Sonar Scanner
         run: |
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
           PROJECT_VERSION="v${{ github.run_number }}" bash /usr/local/bin/sonar-scanner_v2.sh
+          echo "TIME_SCAN=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Wait for Quality Gate to complete
+        timeout-minutes: 15
         continue-on-error: ${{ !inputs.QUALITY_GATE_ENFORCED }}
-        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
+        uses: sonarsource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b  # v1.2.0
         with:
           scanMetadataReportFile: '.scannerwork/report-task.txt'
 
       - name: Clone schema for build
         if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
+          set -Eeuo pipefail
           DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
           CLONE_SCHEMA="${SOURCE_SCHEMA}_${RELEASE_NUM}"
-          snow sql -q "CREATE OR REPLACE SCHEMA ${SOURCE_DATABASE}.${CLONE_SCHEMA};" -c $CONNECTION_NAME
-          snow sql -q "CREATE DCM PROJECT IF NOT EXISTS ${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME};" -c $CONNECTION_NAME
+          # Trust boundary: SOURCE_DATABASE, SOURCE_SCHEMA, DCM_PROJECT_IDENTIFIER are
+          # regex-validated in the "Validate inputs" step (alphanumeric + underscore only).
+          # IDENTIFIER() quoting provides defense-in-depth.
+          snow sql -q "CREATE OR REPLACE SCHEMA IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}');" -c $CONNECTION_NAME
+          snow sql -q "CREATE DCM PROJECT IF NOT EXISTS IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}');" -c $CONNECTION_NAME
           cp manifest.yml manifest.yml.bak
-          python3 -c "
-          import yaml
-          with open('manifest.yml') as f:
-              m = yaml.safe_load(f)
-          m['targets']['$DCM_TARGET']['project_name'] = '${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}'
-          t = m.get('templating', {})
-          t.setdefault('defaults', {})['schema'] = '${CLONE_SCHEMA}'
-          cfg = t.get('configurations', {}).get('$DCM_TARGET', {})
-          if cfg:
-              cfg['schema'] = '${CLONE_SCHEMA}'
-          with open('manifest.yml', 'w') as f:
-              yaml.dump(m, f, default_flow_style=False)
-          "
+          yq -i "
+            .targets.\"$DCM_TARGET\".project_name = \"${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}\" |
+            .templating.defaults.schema = \"${CLONE_SCHEMA}\" |
+            .templating.configurations.\"$DCM_TARGET\".schema = \"${CLONE_SCHEMA}\"
+          " manifest.yml
           if [[ -f sources/definitions/infrastructure.sql ]]; then
             sed -i '/^DEFINE WAREHOUSE/,/;$/d' sources/definitions/infrastructure.sql
           fi
@@ -152,16 +192,21 @@ jobs:
           echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
+        timeout-minutes: 15
         run: |
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
           bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
             --PROJECT_IDENTIFIER=$DCM_PROJECT_IDENTIFIER \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TARGET=$DCM_TARGET \
             --ALIAS="release-${RELEASE_NUM}-${GITHUB_RUN_ATTEMPT}" \
             --PROJECT_DIR="$(pwd)"
+          echo "TIME_DCM_DEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute post_deploy.sql
         run: |
+          set -Eeuo pipefail
           bash /usr/local/bin/render-sql_v1.sh \
             --FILE=post_deploy.sql \
             --TARGET=$DCM_TARGET \
@@ -169,6 +214,7 @@ jobs:
 
       - name: Run custom scripts
         run: |
+          set -Eeuo pipefail
           if [[ -d "scripts/" ]]; then
             for script in $(ls scripts/*.sh 2>/dev/null | sort); do
               echo "Running $script..."
@@ -180,6 +226,8 @@ jobs:
 
       - name: Run SQL Validation Tests
         run: |
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
           if [[ -f "sqlunit/tests.sqltest" && -f "manifest.yml" ]]; then
             bash /usr/local/bin/render-sql_v1.sh \
               --FILE=sqlunit/tests.sqltest \
@@ -197,6 +245,7 @@ jobs:
             --CLONE_SCHEMA=$TEST_SCHEMA \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TEST_FILE="$TEST_FILE"
+          echo "TIME_VALIDATION=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Drop clone schema
         if: ${{ always() && inputs.CLONE_PER_BUILD }}
@@ -216,6 +265,7 @@ jobs:
       - name: DCM Deploy to original
         if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
+          set -Eeuo pipefail
           bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
             --PROJECT_IDENTIFIER=${{ inputs.DCM_PROJECT_IDENTIFIER }} \
             --CONNECTION_NAME=$CONNECTION_NAME \
@@ -223,14 +273,64 @@ jobs:
             --ALIAS="release-${RELEASE_NUM}-${GITHUB_RUN_ATTEMPT}" \
             --PROJECT_DIR="$(pwd)"
 
+      - name: Upload pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: pipeline-logs-${{ github.run_number }}
+          retention-days: 30
+          if-no-files-found: ignore
+          path: |
+            .scannerwork/report-task.txt
+            sqlfluff_issues.json
+            out/
+            sqlunit/tests.rendered.sqltest
+
       - name: Zip source files
         run: |
-          zip -r release.zip . -x '*.git*' '*.scannerwork*' 'out/*'
+          set -Eeuo pipefail
+          STEP_START=$SECONDS
+          zip -r release.zip . \
+            -x '*.git*' '*.scannerwork*' 'out/*' \
+               '__pycache__/*' '.pytest_cache/*' '.venv/*' \
+               '*.bak' 'sqlunit/*.rendered.*'
+          echo "TIME_RELEASE=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           name: Release ${{ github.run_number }}
           tag_name: v${{ github.run_number }}
           files: release.zip
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          DURATION=$(($(date +%s) - ${PIPELINE_START:-0}))
+          cat >> $GITHUB_STEP_SUMMARY <<SUMMARY
+          ## Deployment Summary
+
+          | Item | Value |
+          |------|-------|
+          | Project | $PROJECT_KEY |
+          | Branch | $SONAR_BRANCH_NAME |
+          | Database | $SOURCE_DATABASE |
+          | Schema | $SOURCE_SCHEMA |
+          | Release | v$RELEASE_NUM |
+          | DCM Target | $DCM_TARGET |
+          | Clone Used | ${{ inputs.CLONE_PER_BUILD }} |
+          | Duration | ${DURATION}s |
+
+          ## Phase Timing
+
+          | Phase | Duration |
+          |-------|----------|
+          | Runner Setup | ${TIME_SETUP:-?}s |
+          | Pre-deploy | ${TIME_PREDEPLOY:-?}s |
+          | Sonar Scan | ${TIME_SCAN:-?}s |
+          | DCM Deploy | ${TIME_DCM_DEPLOY:-?}s |
+          | SQL Validation | ${TIME_VALIDATION:-?}s |
+          | Release | ${TIME_RELEASE:-?}s |
+          | **Total** | **${DURATION}s** |
+          SUMMARY

@@ -40,6 +40,8 @@ if [[ -n "${SONAR_ADMIN_PASS:-}" ]]; then
     if [[ -f "$HOME/.sonar_env" ]]; then
         source "$HOME/.sonar_env"
     fi
+    echo "Setting up SonarQube rules..."
+    bash /usr/local/bin/sonar-rules-setup.sh || echo "Sonar rules setup skipped"
 fi
 # Clean up runner on termination
 cleanup() {

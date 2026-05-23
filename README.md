@@ -78,7 +78,38 @@ jobs:
 5. **Post-deploy** — run `post_deploy.sql`
 6. **Custom scripts** — execute any `scripts/*.sh`
 7. **SQL Validation Tests** — CTRF JSON output
-8. **GitHub Release** — zip + tag
+8. **Upload Artifacts** — Sonar report, SQLFluff issues, dependency graph, rendered tests (30-day retention)
+9. **GitHub Release** — zip + tag
+10. **Deployment Summary** — markdown table in GitHub Step Summary (project, schema, release, duration)
+
+### Pipeline Hardening (built-in):
+- **Concurrency control** — prevents parallel deploys to the same schema
+- **Input validation** — regex-validated database/schema/project identifiers
+- **Shell strict mode** — `set -Eeuo pipefail` catches silent failures
+- **Timeouts** — job: 90 min, Quality Gate + DCM deploy: 15 min each
+- **Least privilege** — explicit `permissions:` block (contents: write, actions: read, checks: write)
+- **Pinned actions** — all GitHub Actions pinned to commit SHAs
+- **Filtered env** — `.sonar_env` exports only `SONAR_*` variables
+- **Identifier quoting** — Snowflake `IDENTIFIER()` function for defense-in-depth SQL injection prevention
+- **Phase timing** — per-step duration metrics in Step Summary for bottleneck identification
+
+### Enabling Quality Gate Enforcement
+
+To block deployments on SonarQube quality gate failure, set `QUALITY_GATE_ENFORCED: true` in your consumer repo's workflow caller:
+
+```yaml
+jobs:
+  pipeline:
+    uses: zbrainiac-labs/DataOpsBackbone/.github/workflows/dataops-pipeline.yml@main
+    with:
+      SOURCE_DATABASE: MY_DB
+      SOURCE_SCHEMA: MY_SCHEMA
+      DCM_PROJECT_IDENTIFIER: MY_DB.MY_SCHEMA.MY_PROJECT
+      QUALITY_GATE_ENFORCED: true  # blocks deploy on quality gate failure
+    secrets: inherit
+```
+
+When disabled (default), quality gate failures are reported but do not block the pipeline.
 
 ### Consumer Repos:
 | Repo | Database | DCM Schema | Data Schemas | Clone per Build |
@@ -87,7 +118,7 @@ jobs:
 | [project-one](https://github.com/zbrainiac-labs/project-one) | ONE_DEV | ONE_DCM | ONE_RAW_v001 | ✅ |
 | [MasterDataManagement](https://github.com/zbrainiac-labs/MasterDataManagement) | MDM_DEV | MDM_DCM | MDM_RAW_v001, MDM_AGG_v001, MDM_SRV_v001 | |
 | [crm_dcm_project](https://github.com/zbrainiac-labs/crm_dcm_project) | CRM_DEV | CRM_DCM | CRM_RAW_v001, CRM_CUR_v001 | |
-| [SyntheticRetailBank](https://github.com/zbrainiac-labs/SyntheticRetailBank) | AAA_DEV_SYNTHETIC_BANK | AAA_DCM | CRM_RAW_v001, PAY_RAW_v001, ... | |
+| [SyntheticRetailBank](https://github.com/zbrainiac-labs/SyntheticRetailBank) | AAA_DEV_SYNTHETIC_BANK | AAA_DCM | CRM_RAW_v001, PAY_RAW_v001, ... | ✅ |
 | [sharing_any_objects](https://github.com/zbrainiac-labs/sharing_any_objects) | ECO_DEV | ECO_DCM | ECO_RAW_v001 | ✅ |
 | [crew-asset-management](https://github.com/zbrainiac-labs/crew-asset-management) | SAM_DEMO | SAM_DCM | SAM_RAW_v001 | |
 
@@ -127,8 +158,7 @@ DataOpsBackbone/
 ├── backup/                     # SonarQube quality profile backups
 ├── images/                     # Documentation images
 ├── docker-compose.yml          # Full stack (SonarQube + 2 runners + nginx)
-├── start.sh                    # One-command startup
-└── open_points.md              # Backlog / deferred items
+└── start.sh                    # One-command startup
 ```
 
 ---
@@ -307,10 +337,11 @@ Backups of these rules, which can be restored as a Quality Profile, are availabl
 
 ### Data Quality & Consistency Rules
 
-#### 19. Disallow SELECT * (force explicit column lists)
+#### 19. ~~Disallow SELECT * (force explicit column lists)~~ — DISABLED
 ```regex
 (?i)^(?!\s*--)\s*SELECT\s+\*\s+FROM\b
 ```
+> **Disabled**: Redundant — already covered by SQLFluff AM04 (`SELECT *` unknown columns) and SQLCC C002 (`SELECT *` used).
 
 #### 20. Disallow FLOAT/DOUBLE/REAL -- prefer NUMBER(p,s)
 ```regex

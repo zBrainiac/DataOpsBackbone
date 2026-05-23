@@ -55,9 +55,9 @@ PROJECT_VERSION="${PROJECT_VERSION:-$(git -C "$PROJECT_BASE_DIR" describe --tags
   -Dsonar.projectVersion="$PROJECT_VERSION" \
   -Dsonar.host.url="$SONAR_HOST" \
   -Dsonar.scm.disabled=true \
-  -Dsonar.language=sql \
   -Dsonar.sql.dialect=snowflake \
-  -Dsonar.exclusions=".git/**" \
+  -Dsonar.text.inclusions="**/*.sql,**/*.json" \
+  -Dsonar.exclusions=".git/**,**/*.md,**/*.csv,**/*.yml,**/*.yaml,**/*.ipynb,**/*.sqltest,**/.DS_Store" \
   -Dsonar.sourceEncoding="UTF-8" \
   $EXTERNAL_ISSUES_ARG \
   -Dsonar.token="$SONAR_TOKEN"
