@@ -61,8 +61,8 @@ on:
         description: 'Run scan and analysis only, skip deployment and release'
       USE_OIDC:
         type: boolean
-        default: true
-        description: 'Use OIDC workload identity for Snowflake auth (false = SNOW_CONFIG_B64 fallback)'
+        default: false
+        description: 'Use OIDC workload identity for Snowflake auth (requires per-repo OIDC subject opt-in)'
       SNOWFLAKE_ACCOUNT:
         type: string
         default: 'zs28104.eu-central-1'
