@@ -59,6 +59,10 @@ DataOpsBackbone provides a **single reusable GitHub Actions workflow** that all 
 
 ```yaml
 # In each consumer repo (.github/workflows/pipeline.yml):
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   pipeline:
     uses: zbrainiac-labs/DataOpsBackbone/.github/workflows/dataops-pipeline.yml@main
@@ -70,28 +74,35 @@ jobs:
     secrets: inherit
 ```
 
-### Pipeline Steps (executed in order):
-1. **Pre-deploy** — create DB/schemas/DCM project (`pre_deploy.sql`)
-2. **Extract dependencies** — DDL + cross-schema reference analysis
-3. **SonarQube scan** + Quality Gate check
-4. **DCM Deploy** — `raw-analyze` → `plan` → `deploy`
-5. **Post-deploy** — run `post_deploy.sql`
-6. **Custom scripts** — execute any `scripts/*.sh`
-7. **SQL Validation Tests** — CTRF JSON output
-8. **Upload Artifacts** — Sonar report, SQLFluff issues, dependency graph, rendered tests (30-day retention)
-9. **GitHub Release** — zip + tag
-10. **Deployment Summary** — markdown table in GitHub Step Summary (project, schema, release, duration)
+### Pipeline Jobs (6 composable jobs):
+
+| Job | Timeout | Purpose |
+|-----|---------|---------|
+| **prepare** | 10 min | Validate inputs, OIDC auth, pre-deploy SQL |
+| **scan** | 30 min | Extract deps, SQLFluff, SonarQube, Quality Gate |
+| **deploy** | 20 min | Clone (optional), DCM deploy, post-deploy, custom scripts |
+| **validate** | 15 min | SQL validation tests, CTRF-to-SonarQube conversion |
+| **cleanup** | 10 min | Drop clone schema (always runs if clone enabled) |
+| **release** | 15 min | Deploy to original, zip, GitHub release, summary |
+
+### Authentication
+
+The pipeline uses **OIDC Workload Identity Federation** by default (secretless). GitHub issues a short-lived token per job that Snowflake validates directly. No PAT or stored secrets needed.
+
+Fallback to `SNOW_CONFIG_B64` (PAT-based) is available via `USE_OIDC: false`.
 
 ### Pipeline Hardening (built-in):
+- **OIDC auth** — secretless, short-lived tokens per job (no stored PAT)
+- **Multi-job architecture** — parallelization, resumability, clear failure boundaries
+- **Environment protection** — `environment:` on deploy/release for approval gates
 - **Concurrency control** — prevents parallel deploys to the same schema
 - **Input validation** — regex-validated database/schema/project identifiers
 - **Shell strict mode** — `set -Eeuo pipefail` catches silent failures
-- **Timeouts** — job: 90 min, Quality Gate + DCM deploy: 15 min each
-- **Least privilege** — explicit `permissions:` block (contents: write, actions: read, checks: write)
+- **Retry logic** — 3 attempts with exponential backoff on Snowflake operations
+- **Timeouts** — per-job timeouts prevent runaway execution
 - **Pinned actions** — all GitHub Actions pinned to commit SHAs
-- **Filtered env** — `.sonar_env` exports only `SONAR_*` variables
-- **Identifier quoting** — Snowflake `IDENTIFIER()` function for defense-in-depth SQL injection prevention
-- **Phase timing** — per-step duration metrics in Step Summary for bottleneck identification
+- **Identifier quoting** — Snowflake `IDENTIFIER()` for defense-in-depth
+- **DRY_RUN mode** — scan without deploying (for PR validation)
 
 ### Enabling Quality Gate Enforcement
 
@@ -105,7 +116,7 @@ jobs:
       SOURCE_DATABASE: MY_DB
       SOURCE_SCHEMA: MY_SCHEMA
       DCM_PROJECT_IDENTIFIER: MY_DB.MY_SCHEMA.MY_PROJECT
-      QUALITY_GATE_ENFORCED: true  # blocks deploy on quality gate failure
+      QUALITY_GATE_ENFORCED: true
     secrets: inherit
 ```
 

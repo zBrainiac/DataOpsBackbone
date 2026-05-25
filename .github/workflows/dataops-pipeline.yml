@@ -6,19 +6,20 @@
 # Called by consumer repos via:
 #   uses: zbrainiac-labs/DataOpsBackbone/.github/workflows/dataops-pipeline.yml@main
 #
-# Pipeline order:
-#   1. Pre-deploy (create DB/schemas/DCM project)
-#   2. Extract dependencies (DDL + cross-schema refs)
-#   3. SonarQube scan + Quality Gate
-#   4. DCM Analyze + Plan + Deploy
-#   5. SQL Validation Tests
-#   6. Package + Release
+# Pipeline Jobs:
+#   1. prepare  — validate inputs, setup auth, pre-deploy
+#   2. scan     — dependencies, SQLFluff, SonarQube, Quality Gate
+#   3. deploy   — clone (optional), DCM deploy, post-deploy, scripts
+#   4. validate — SQL validation tests
+#   5. cleanup  — drop clone schema (always runs if clone enabled)
+#   6. release  — deploy to original, package, GitHub release, summary
 #
 # ======================================================
 
 name: DataOps Pipeline
 
 permissions:
+  id-token: write
   contents: write
   actions: read
   checks: write
@@ -58,49 +59,52 @@ on:
         type: boolean
         default: false
         description: 'Run scan and analysis only, skip deployment and release'
+      USE_OIDC:
+        type: boolean
+        default: true
+        description: 'Use OIDC workload identity for Snowflake auth (false = SNOW_CONFIG_B64 fallback)'
+      SNOWFLAKE_ACCOUNT:
+        type: string
+        default: 'zs28104.eu-central-1'
+        description: 'Snowflake account identifier for OIDC auth'
     secrets:
       SNOW_CONFIG_B64:
-        required: true
+        required: false
 
 concurrency:
   group: dataops-${{ github.ref }}-${{ inputs.SOURCE_DATABASE }}-${{ inputs.SOURCE_SCHEMA }}
   cancel-in-progress: false
 
 jobs:
-  update-and-scan:
+  # ============================================================
+  # JOB 1: PREPARE — validate, auth, pre-deploy
+  # ============================================================
+  prepare:
     runs-on: self-hosted
-    timeout-minutes: 90
+    timeout-minutes: 10
+    outputs:
+      connection_name: ${{ steps.sf.outputs.connection-name }}
     env:
       PROJECT_KEY: ${{ github.event.repository.name }}
-      RELEASE_NUM: ${{ github.run_number }}
-      SONAR_BRANCH_NAME: ${{ github.ref_name }}
-      SONAR_HOST: http://sonarqube:9000
       SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
       SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
       DCM_PROJECT_IDENTIFIER: ${{ inputs.DCM_PROJECT_IDENTIFIER }}
       DCM_TARGET: ${{ inputs.DCM_TARGET }}
-      SNOW_CONFIG_B64: ${{ secrets.SNOW_CONFIG_B64 }}
-
     defaults:
       run:
         shell: bash
-
     steps:
-      - name: Set up dynamic base directories
-        run: |
-          set -Eeuo pipefail
-          echo "PIPELINE_START=$(date +%s)" >> $GITHUB_ENV
-          echo "BASE_DIR_PROJECT=$HOME/workspace/${PROJECT_KEY}" >> $GITHUB_ENV
-
       - name: Show repo info
         run: |
           set -Eeuo pipefail
+          echo "PIPELINE_START=$(date +%s)" >> $GITHUB_ENV
           echo "Project: $PROJECT_KEY"
-          echo "Branch: $SONAR_BRANCH_NAME"
-          echo "Release #: $RELEASE_NUM"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Release #: ${{ github.run_number }}"
           echo "DCM Project: $DCM_PROJECT_IDENTIFIER"
           echo "Database: $SOURCE_DATABASE"
           echo "Schema: $SOURCE_SCHEMA"
+          echo "DRY_RUN: ${{ inputs.DRY_RUN }}"
 
       - name: Validate inputs
         run: |
@@ -114,28 +118,51 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up github runner env
-        run: |
-          set -Eeuo pipefail
-          STEP_START=$SECONDS
-          bash /usr/local/bin/github-runner_v1.sh
-          CONNECTION_NAME=$(grep -oP '^\[connections\.\K[^\]]+' $HOME/.snowflake/config.toml | head -1)
-          echo "CONNECTION_NAME=$CONNECTION_NAME" >> $GITHUB_ENV
-          if [[ -f "$HOME/.sonar_env" ]]; then
-            grep '^SONAR_' "$HOME/.sonar_env" >> $GITHUB_ENV || true
-          fi
-          echo "TIME_SETUP=$((SECONDS - STEP_START))" >> $GITHUB_ENV
+      - name: Setup Snowflake connection
+        id: sf
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
 
       - name: Render and execute pre_deploy.sql
         if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
-          STEP_START=$SECONDS
           bash /usr/local/bin/render-sql_v1.sh \
             --FILE=pre_deploy.sql \
             --TARGET=$DCM_TARGET \
             --CONNECTION_NAME=$CONNECTION_NAME
-          echo "TIME_PREDEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
+
+  # ============================================================
+  # JOB 2: SCAN — dependencies, linting, SonarQube
+  # ============================================================
+  scan:
+    needs: prepare
+    runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      PROJECT_KEY: ${{ github.event.repository.name }}
+      SONAR_BRANCH_NAME: ${{ github.ref_name }}
+      SONAR_HOST: http://sonarqube:9000
+      SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
+      SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Snowflake connection
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
 
       - name: Extract dependencies
         continue-on-error: true
@@ -162,9 +189,7 @@ jobs:
       - name: Run Sonar Scanner
         run: |
           set -Eeuo pipefail
-          STEP_START=$SECONDS
           PROJECT_VERSION="v${{ github.run_number }}" bash /usr/local/bin/sonar-scanner_v2.sh
-          echo "TIME_SCAN=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Wait for Quality Gate to complete
         timeout-minutes: 15
@@ -173,8 +198,44 @@ jobs:
         with:
           scanMetadataReportFile: '.scannerwork/report-task.txt'
 
+  # ============================================================
+  # JOB 3: DEPLOY — clone, DCM deploy, post-deploy, scripts
+  # ============================================================
+  deploy:
+    needs: scan
+    if: ${{ !inputs.DRY_RUN }}
+    runs-on: self-hosted
+    timeout-minutes: 20
+    environment: ${{ inputs.DCM_TARGET }}
+    outputs:
+      clone_schema: ${{ steps.clone.outputs.clone_schema }}
+      work_dir: ${{ steps.clone.outputs.work_dir }}
+    env:
+      PROJECT_KEY: ${{ github.event.repository.name }}
+      RELEASE_NUM: ${{ github.run_number }}
+      SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
+      SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
+      DCM_PROJECT_IDENTIFIER: ${{ inputs.DCM_PROJECT_IDENTIFIER }}
+      DCM_TARGET: ${{ inputs.DCM_TARGET }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Snowflake connection
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
+
       - name: Clone schema for build
-        if: ${{ inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
+        id: clone
+        if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
           set -Eeuo pipefail
           DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
@@ -186,7 +247,7 @@ jobs:
           cp -r . "$WORK_DIR/"
           python3 -c "
           import yaml, os
-          target = os.environ.get('DCM_TARGET', '$DCM_TARGET')
+          target = os.environ.get('DCM_TARGET')
           schema = '${CLONE_SCHEMA}'
           project = '${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}'
           with open('$WORK_DIR/manifest.yml') as f:
@@ -203,16 +264,16 @@ jobs:
           if [[ -f "$WORK_DIR/sources/definitions/infrastructure.sql" ]]; then
             sed -i '/^DEFINE WAREHOUSE/,/;$/d' "$WORK_DIR/sources/definitions/infrastructure.sql"
           fi
+          echo "clone_schema=${CLONE_SCHEMA}" >> $GITHUB_OUTPUT
+          echo "work_dir=$WORK_DIR" >> $GITHUB_OUTPUT
           echo "CLONE_SCHEMA=${CLONE_SCHEMA}" >> $GITHUB_ENV
           echo "WORK_DIR=$WORK_DIR" >> $GITHUB_ENV
           echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
-        if: ${{ !inputs.DRY_RUN }}
         timeout-minutes: 15
         run: |
           set -Eeuo pipefail
-          STEP_START=$SECONDS
           retry() { local n=0; until "$@"; do n=$((n+1)); if [ $n -ge 3 ]; then echo "::error::Failed after 3 attempts: $*"; return 1; fi; echo "::warning::Attempt $n failed, retrying in $((n*10))s..."; sleep $((n*10)); done; }
           retry bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
             --PROJECT_IDENTIFIER=$DCM_PROJECT_IDENTIFIER \
@@ -220,10 +281,8 @@ jobs:
             --TARGET=$DCM_TARGET \
             --ALIAS="release-${RELEASE_NUM}-${GITHUB_RUN_ATTEMPT}" \
             --PROJECT_DIR="${WORK_DIR:-$(pwd)}"
-          echo "TIME_DCM_DEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute post_deploy.sql
-        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           bash /usr/local/bin/render-sql_v1.sh \
@@ -232,7 +291,6 @@ jobs:
             --CONNECTION_NAME=$CONNECTION_NAME
 
       - name: Run custom scripts
-        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           if [[ -d "scripts/" ]]; then
@@ -244,11 +302,39 @@ jobs:
             echo "No scripts/ directory found, skipping."
           fi
 
+  # ============================================================
+  # JOB 4: VALIDATE — SQL tests
+  # ============================================================
+  validate:
+    needs: deploy
+    if: ${{ !inputs.DRY_RUN }}
+    runs-on: self-hosted
+    timeout-minutes: 15
+    env:
+      PROJECT_KEY: ${{ github.event.repository.name }}
+      SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
+      SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
+      DCM_TARGET: ${{ inputs.DCM_TARGET }}
+      CLONE_SCHEMA: ${{ needs.deploy.outputs.clone_schema }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Snowflake connection
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
+
       - name: Run SQL Validation Tests
-        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
-          STEP_START=$SECONDS
           if [[ -f "sqlunit/tests.sqltest" && -f "manifest.yml" ]]; then
             bash /usr/local/bin/render-sql_v1.sh \
               --FILE=sqlunit/tests.sqltest \
@@ -266,10 +352,8 @@ jobs:
             --CLONE_SCHEMA=$TEST_SCHEMA \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TEST_FILE="$TEST_FILE"
-          echo "TIME_VALIDATION=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Convert test results for SonarQube
-        if: ${{ !inputs.DRY_RUN }}
         run: |
           CTRF_FILE=$(find sql-unit-reports -name 'TEST_*.json' 2>/dev/null | sort | tail -1 || true)
           if [[ -n "$CTRF_FILE" ]]; then
@@ -278,23 +362,79 @@ jobs:
             echo "No CTRF report found, skipping conversion."
           fi
 
+  # ============================================================
+  # JOB 5: CLEANUP — drop clone schema (always runs)
+  # ============================================================
+  cleanup:
+    needs: deploy
+    if: ${{ always() && inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
+    runs-on: self-hosted
+    timeout-minutes: 10
+    env:
+      SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
+      SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
+      RELEASE_NUM: ${{ github.run_number }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Snowflake connection
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
+
       - name: Drop clone schema
-        if: ${{ always() && inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
         run: |
-          rm -rf "${WORK_DIR:-}" 2>/dev/null || true
+          rm -rf "${{ needs.deploy.outputs.work_dir }}" 2>/dev/null || true
           bash /usr/local/bin/snowflake-drop-clone-schema_v3.sh \
             --SOURCE_DATABASE=$SOURCE_DATABASE \
             --SOURCE_SCHEMA=$SOURCE_SCHEMA \
             --RELEASE_NUM=$RELEASE_NUM \
             --CONNECTION_NAME=$CONNECTION_NAME
-          echo "DCM_PROJECT_IDENTIFIER=${{ inputs.DCM_PROJECT_IDENTIFIER }}" >> $GITHUB_ENV
-          echo "CLONE_SCHEMA=" >> $GITHUB_ENV
+
+  # ============================================================
+  # JOB 6: RELEASE — deploy original, package, release, summary
+  # ============================================================
+  release:
+    needs: [validate, cleanup]
+    if: ${{ always() && !inputs.DRY_RUN && needs.validate.result == 'success' }}
+    runs-on: self-hosted
+    timeout-minutes: 15
+    environment: ${{ inputs.DCM_TARGET }}
+    env:
+      PROJECT_KEY: ${{ github.event.repository.name }}
+      RELEASE_NUM: ${{ github.run_number }}
+      SONAR_BRANCH_NAME: ${{ github.ref_name }}
+      SOURCE_DATABASE: ${{ inputs.SOURCE_DATABASE }}
+      SOURCE_SCHEMA: ${{ inputs.SOURCE_SCHEMA }}
+      DCM_TARGET: ${{ inputs.DCM_TARGET }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Snowflake connection
+        uses: ./.github/actions/setup-snowflake
+        with:
+          use-oidc: ${{ inputs.USE_OIDC }}
+          snowflake-account: ${{ inputs.SNOWFLAKE_ACCOUNT }}
+          snow-config-b64: ${{ secrets.SNOW_CONFIG_B64 }}
 
       - name: DCM Deploy to original
-        if: ${{ inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
+        if: ${{ inputs.CLONE_PER_BUILD }}
         run: |
           set -Eeuo pipefail
-          bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
+          retry() { local n=0; until "$@"; do n=$((n+1)); if [ $n -ge 3 ]; then echo "::error::Failed after 3 attempts: $*"; return 1; fi; echo "::warning::Attempt $n failed, retrying in $((n*10))s..."; sleep $((n*10)); done; }
+          retry bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
             --PROJECT_IDENTIFIER=${{ inputs.DCM_PROJECT_IDENTIFIER }} \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TARGET=$DCM_TARGET \
@@ -313,20 +453,17 @@ jobs:
             sqlfluff_issues.json
             out/
             sqlunit/tests.rendered.sqltest
+            sonar_test_report.xml
 
       - name: Zip source files
-        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
-          STEP_START=$SECONDS
           zip -r release.zip . \
             -x '*.git*' '*.scannerwork*' 'out/*' \
                '__pycache__/*' '.pytest_cache/*' '.venv/*' \
                '*.bak' 'sqlunit/*.rendered.*'
-          echo "TIME_RELEASE=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Create GitHub Release
-        if: ${{ !inputs.DRY_RUN }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           name: Release ${{ github.run_number }}
@@ -337,7 +474,6 @@ jobs:
       - name: Deployment summary
         if: always()
         run: |
-          DURATION=$(($(date +%s) - ${PIPELINE_START:-0}))
           cat >> $GITHUB_STEP_SUMMARY <<SUMMARY
           ## Deployment Summary
 
@@ -351,17 +487,5 @@ jobs:
           | DCM Target | $DCM_TARGET |
           | Clone Used | ${{ inputs.CLONE_PER_BUILD }} |
           | Dry Run | ${{ inputs.DRY_RUN }} |
-          | Duration | ${DURATION}s |
-
-          ## Phase Timing
-
-          | Phase | Duration |
-          |-------|----------|
-          | Runner Setup | ${TIME_SETUP:-?}s |
-          | Pre-deploy | ${TIME_PREDEPLOY:-?}s |
-          | Sonar Scan | ${TIME_SCAN:-?}s |
-          | DCM Deploy | ${TIME_DCM_DEPLOY:-?}s |
-          | SQL Validation | ${TIME_VALIDATION:-?}s |
-          | Release | ${TIME_RELEASE:-?}s |
-          | **Total** | **${DURATION}s** |
+          | Auth | ${{ inputs.USE_OIDC && 'OIDC' || 'SNOW_CONFIG_B64' }} |
           SUMMARY
