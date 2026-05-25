@@ -179,19 +179,17 @@ jobs:
           set -Eeuo pipefail
           DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
           CLONE_SCHEMA="${SOURCE_SCHEMA}_${RELEASE_NUM}"
-          # Trust boundary: SOURCE_DATABASE, SOURCE_SCHEMA, DCM_PROJECT_IDENTIFIER are
-          # regex-validated in the "Validate inputs" step (alphanumeric + underscore only).
-          # IDENTIFIER() quoting provides defense-in-depth.
           retry() { local n=0; until "$@"; do n=$((n+1)); if [ $n -ge 3 ]; then echo "::error::Failed after 3 attempts: $*"; return 1; fi; echo "::warning::Attempt $n failed, retrying in $((n*10))s..."; sleep $((n*10)); done; }
           snow sql -q "CREATE OR REPLACE SCHEMA IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}');" -c $CONNECTION_NAME
           retry snow sql -q "CREATE DCM PROJECT IF NOT EXISTS IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}');" -c $CONNECTION_NAME
-          cp manifest.yml manifest.yml.bak
+          WORK_DIR=$(mktemp -d)
+          cp -r . "$WORK_DIR/"
           python3 -c "
           import yaml, os
           target = os.environ.get('DCM_TARGET', '$DCM_TARGET')
           schema = '${CLONE_SCHEMA}'
           project = '${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}'
-          with open('manifest.yml') as f:
+          with open('$WORK_DIR/manifest.yml') as f:
               m = yaml.safe_load(f)
           m['targets'][target]['project_name'] = project
           t = m.setdefault('templating', {})
@@ -199,13 +197,14 @@ jobs:
           cfg = t.get('configurations', {}).get(target, {})
           if cfg:
               cfg['schema'] = schema
-          with open('manifest.yml', 'w') as f:
+          with open('$WORK_DIR/manifest.yml', 'w') as f:
               yaml.dump(m, f, default_flow_style=False)
           "
-          if [[ -f sources/definitions/infrastructure.sql ]]; then
-            sed -i '/^DEFINE WAREHOUSE/,/;$/d' sources/definitions/infrastructure.sql
+          if [[ -f "$WORK_DIR/sources/definitions/infrastructure.sql" ]]; then
+            sed -i '/^DEFINE WAREHOUSE/,/;$/d' "$WORK_DIR/sources/definitions/infrastructure.sql"
           fi
           echo "CLONE_SCHEMA=${CLONE_SCHEMA}" >> $GITHUB_ENV
+          echo "WORK_DIR=$WORK_DIR" >> $GITHUB_ENV
           echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
@@ -220,7 +219,7 @@ jobs:
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TARGET=$DCM_TARGET \
             --ALIAS="release-${RELEASE_NUM}-${GITHUB_RUN_ATTEMPT}" \
-            --PROJECT_DIR="$(pwd)"
+            --PROJECT_DIR="${WORK_DIR:-$(pwd)}"
           echo "TIME_DCM_DEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute post_deploy.sql
@@ -269,13 +268,19 @@ jobs:
             --TEST_FILE="$TEST_FILE"
           echo "TIME_VALIDATION=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
+      - name: Convert test results for SonarQube
+        if: ${{ !inputs.DRY_RUN }}
+        run: |
+          set -Eeuo pipefail
+          CTRF_FILE=$(ls sql-unit-reports/TEST_*.json 2>/dev/null | tail -1)
+          if [[ -n "$CTRF_FILE" ]]; then
+            python3 /usr/local/bin/ctrf_to_sonar_test.py "$CTRF_FILE" "$(pwd)/sonar_test_report.xml"
+          fi
+
       - name: Drop clone schema
         if: ${{ always() && inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
         run: |
-          if [[ -f manifest.yml.bak ]]; then
-            mv manifest.yml.bak manifest.yml
-          fi
-          git checkout -- sources/ 2>/dev/null || true
+          rm -rf "${WORK_DIR:-}" 2>/dev/null || true
           bash /usr/local/bin/snowflake-drop-clone-schema_v3.sh \
             --SOURCE_DATABASE=$SOURCE_DATABASE \
             --SOURCE_SCHEMA=$SOURCE_SCHEMA \

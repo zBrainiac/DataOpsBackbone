@@ -47,6 +47,13 @@ if [[ -f "$SQLFLUFF_ISSUES" ]]; then
   EXTERNAL_ISSUES_ARG="-Dsonar.externalIssuesReportPaths=$SQLFLUFF_ISSUES"
 fi
 
+TEST_REPORT_ARG=""
+SONAR_TEST_REPORT="${PROJECT_BASE_DIR}/sonar_test_report.xml"
+if [[ -f "$SONAR_TEST_REPORT" ]]; then
+  echo "Test execution report found: $SONAR_TEST_REPORT"
+  TEST_REPORT_ARG="-Dsonar.testExecutionReportPaths=$SONAR_TEST_REPORT"
+fi
+
 echo "Running sonar-scanner..."
 PROJECT_VERSION="${PROJECT_VERSION:-$(git -C "$PROJECT_BASE_DIR" describe --tags --always 2>/dev/null || echo 'unknown')}"
 "$SONAR_SCANNER" \
@@ -60,4 +67,5 @@ PROJECT_VERSION="${PROJECT_VERSION:-$(git -C "$PROJECT_BASE_DIR" describe --tags
   -Dsonar.exclusions=".git/**,**/*.md,**/*.csv,**/*.yml,**/*.yaml,**/*.ipynb,**/*.sqltest,**/.DS_Store" \
   -Dsonar.sourceEncoding="UTF-8" \
   $EXTERNAL_ISSUES_ARG \
+  $TEST_REPORT_ARG \
   -Dsonar.token="$SONAR_TOKEN"
