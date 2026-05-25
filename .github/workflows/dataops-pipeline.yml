@@ -54,6 +54,10 @@ on:
         type: number
         default: 0
         description: 'Number of critical SQLFluff violations that will fail the build (0 = never fail)'
+      DRY_RUN:
+        type: boolean
+        default: false
+        description: 'Run scan and analysis only, skip deployment and release'
     secrets:
       SNOW_CONFIG_B64:
         required: true
@@ -123,6 +127,7 @@ jobs:
           echo "TIME_SETUP=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute pre_deploy.sql
+        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           STEP_START=$SECONDS
@@ -169,7 +174,7 @@ jobs:
           scanMetadataReportFile: '.scannerwork/report-task.txt'
 
       - name: Clone schema for build
-        if: ${{ inputs.CLONE_PER_BUILD }}
+        if: ${{ inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           DCM_PROJECT_NAME=$(echo "$DCM_PROJECT_IDENTIFIER" | awk -F'.' '{print $NF}')
@@ -177,8 +182,9 @@ jobs:
           # Trust boundary: SOURCE_DATABASE, SOURCE_SCHEMA, DCM_PROJECT_IDENTIFIER are
           # regex-validated in the "Validate inputs" step (alphanumeric + underscore only).
           # IDENTIFIER() quoting provides defense-in-depth.
+          retry() { local n=0; until "$@"; do n=$((n+1)); if [ $n -ge 3 ]; then echo "::error::Failed after 3 attempts: $*"; return 1; fi; echo "::warning::Attempt $n failed, retrying in $((n*10))s..."; sleep $((n*10)); done; }
           snow sql -q "CREATE OR REPLACE SCHEMA IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}');" -c $CONNECTION_NAME
-          snow sql -q "CREATE DCM PROJECT IF NOT EXISTS IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}');" -c $CONNECTION_NAME
+          retry snow sql -q "CREATE DCM PROJECT IF NOT EXISTS IDENTIFIER('${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}');" -c $CONNECTION_NAME
           cp manifest.yml manifest.yml.bak
           python3 -c "
           import yaml, os
@@ -203,11 +209,13 @@ jobs:
           echo "DCM_PROJECT_IDENTIFIER=${SOURCE_DATABASE}.${CLONE_SCHEMA}.${DCM_PROJECT_NAME}" >> $GITHUB_ENV
 
       - name: DCM Analyze + Plan + Deploy
+        if: ${{ !inputs.DRY_RUN }}
         timeout-minutes: 15
         run: |
           set -Eeuo pipefail
           STEP_START=$SECONDS
-          bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
+          retry() { local n=0; until "$@"; do n=$((n+1)); if [ $n -ge 3 ]; then echo "::error::Failed after 3 attempts: $*"; return 1; fi; echo "::warning::Attempt $n failed, retrying in $((n*10))s..."; sleep $((n*10)); done; }
+          retry bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
             --PROJECT_IDENTIFIER=$DCM_PROJECT_IDENTIFIER \
             --CONNECTION_NAME=$CONNECTION_NAME \
             --TARGET=$DCM_TARGET \
@@ -216,6 +224,7 @@ jobs:
           echo "TIME_DCM_DEPLOY=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Render and execute post_deploy.sql
+        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           bash /usr/local/bin/render-sql_v1.sh \
@@ -224,6 +233,7 @@ jobs:
             --CONNECTION_NAME=$CONNECTION_NAME
 
       - name: Run custom scripts
+        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           if [[ -d "scripts/" ]]; then
@@ -236,6 +246,7 @@ jobs:
           fi
 
       - name: Run SQL Validation Tests
+        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           STEP_START=$SECONDS
@@ -259,7 +270,7 @@ jobs:
           echo "TIME_VALIDATION=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Drop clone schema
-        if: ${{ always() && inputs.CLONE_PER_BUILD }}
+        if: ${{ always() && inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
         run: |
           if [[ -f manifest.yml.bak ]]; then
             mv manifest.yml.bak manifest.yml
@@ -274,7 +285,7 @@ jobs:
           echo "CLONE_SCHEMA=" >> $GITHUB_ENV
 
       - name: DCM Deploy to original
-        if: ${{ inputs.CLONE_PER_BUILD }}
+        if: ${{ inputs.CLONE_PER_BUILD && !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           bash /usr/local/bin/snowflake-deploy-dcm_v1.sh \
@@ -298,6 +309,7 @@ jobs:
             sqlunit/tests.rendered.sqltest
 
       - name: Zip source files
+        if: ${{ !inputs.DRY_RUN }}
         run: |
           set -Eeuo pipefail
           STEP_START=$SECONDS
@@ -308,6 +320,7 @@ jobs:
           echo "TIME_RELEASE=$((SECONDS - STEP_START))" >> $GITHUB_ENV
 
       - name: Create GitHub Release
+        if: ${{ !inputs.DRY_RUN }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           name: Release ${{ github.run_number }}
@@ -331,6 +344,7 @@ jobs:
           | Release | v$RELEASE_NUM |
           | DCM Target | $DCM_TARGET |
           | Clone Used | ${{ inputs.CLONE_PER_BUILD }} |
+          | Dry Run | ${{ inputs.DRY_RUN }} |
           | Duration | ${DURATION}s |
 
           ## Phase Timing

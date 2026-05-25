@@ -3,7 +3,7 @@ FROM eclipse-temurin:21-jre-jammy
 
 # Set build arguments
 ARG TARGETARCH
-ARG RUNNER_VERSION="2.327.1"
+ARG RUNNER_VERSION="2.330.0"
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Debug output
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 # Install Sonar Scanner
-RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006.zip && \
+RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.1.0.6389.zip && \
     unzip sonar-scanner.zip -d /usr/local && \
     mv /usr/local/sonar-scanner-* /usr/local/sonar-scanner && \
     chmod +x /usr/local/sonar-scanner/bin/sonar-scanner && \
@@ -52,7 +52,7 @@ RUN set -eux; \
 RUN echo "docker ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Install Snowflake CLI and SQLFluff
-RUN pip install --no-cache-dir 'snowflake-cli>=3.16.0' pyyaml sqlfluff
+RUN pip install --no-cache-dir 'snowflake-cli>=3.18.0' pyyaml sqlfluff
 
 # Set environment PATH
 ENV PATH="/usr/local/sonar-scanner/bin:/usr/local/bin:${PATH}"
