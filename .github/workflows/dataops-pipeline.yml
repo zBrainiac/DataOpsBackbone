@@ -122,14 +122,18 @@ jobs:
         id: sf
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
@@ -175,14 +179,18 @@ jobs:
       - name: Setup Snowflake connection
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
@@ -259,14 +267,18 @@ jobs:
       - name: Setup Snowflake connection
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
@@ -373,14 +385,18 @@ jobs:
       - name: Setup Snowflake connection
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
@@ -444,14 +460,18 @@ jobs:
       - name: Setup Snowflake connection
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
@@ -500,14 +520,18 @@ jobs:
       - name: Setup Snowflake connection
         run: |
           set -Eeuo pipefail
+          mkdir -p $HOME/.snowflake
           if [[ "${{ inputs.USE_OIDC }}" == "true" ]]; then
-            echo "SNOWFLAKE_ACCOUNT=${{ inputs.SNOWFLAKE_ACCOUNT }}" >> $GITHUB_ENV
-            echo "SNOWFLAKE_USER=SVC_CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_ROLE=CICD" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WAREHOUSE=MD_TEST_WH" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUTHENTICATOR=WORKLOAD_IDENTITY" >> $GITHUB_ENV
-            echo "SNOWFLAKE_WORKLOAD_IDENTITY_PROVIDER=OIDC" >> $GITHUB_ENV
-            echo "SNOWFLAKE_AUDIENCE=snowflakecomputing.com" >> $GITHUB_ENV
+            cat > $HOME/.snowflake/config.toml <<TOML
+          [connections.default]
+          account = "${{ inputs.SNOWFLAKE_ACCOUNT }}"
+          user = "SVC_CICD"
+          role = "CICD"
+          warehouse = "MD_TEST_WH"
+          authenticator = "WORKLOAD_IDENTITY"
+          workload_identity_provider = "OIDC"
+          TOML
+            chmod 600 $HOME/.snowflake/config.toml
             echo "CONNECTION_NAME=default" >> $GITHUB_ENV
           else
             export SNOW_CONFIG_B64="${{ secrets.SNOW_CONFIG_B64 }}"
