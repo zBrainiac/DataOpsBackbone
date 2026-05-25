@@ -271,10 +271,11 @@ jobs:
       - name: Convert test results for SonarQube
         if: ${{ !inputs.DRY_RUN }}
         run: |
-          set -Eeuo pipefail
-          CTRF_FILE=$(ls sql-unit-reports/TEST_*.json 2>/dev/null | tail -1)
+          CTRF_FILE=$(find sql-unit-reports -name 'TEST_*.json' 2>/dev/null | sort | tail -1 || true)
           if [[ -n "$CTRF_FILE" ]]; then
             python3 /usr/local/bin/ctrf_to_sonar_test.py "$CTRF_FILE" "$(pwd)/sonar_test_report.xml"
+          else
+            echo "No CTRF report found, skipping conversion."
           fi
 
       - name: Drop clone schema
