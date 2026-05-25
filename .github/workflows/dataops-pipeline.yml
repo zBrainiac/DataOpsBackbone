@@ -69,7 +69,7 @@ on:
         description: 'Snowflake account identifier for OIDC auth'
     secrets:
       SNOW_CONFIG_B64:
-        required: false
+        required: true
 
 concurrency:
   group: dataops-${{ github.ref }}-${{ inputs.SOURCE_DATABASE }}-${{ inputs.SOURCE_SCHEMA }}
